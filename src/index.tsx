@@ -238,12 +238,11 @@ app.get('/', (c) => {
       <div class="analysis-project-meta" id="analysis-project-meta"></div>
     </div>
 
-    <!-- Tab 导航（6 个） -->
+    <!-- Tab 导航（4 个） -->
     <div class="tab-nav-wrap">
       <div class="tab-nav">
         <button class="tab-item active" data-tab="ta">
           <span class="tab-num">1</span> 信息搜集与分层
-          <span class="tab-dot"></span>
         </button>
         <button class="tab-item" data-tab="tb">
           <span class="tab-num">2</span> 假设 · 证据 · 红旗
@@ -253,10 +252,7 @@ app.get('/', (c) => {
           <span class="tab-num">3</span> 决策快照
         </button>
         <button class="tab-item" data-tab="td">
-          <span class="tab-num">4</span> 跟踪信号
-        </button>
-        <button class="tab-item" data-tab="te">
-          <span class="tab-num">5</span> 复盘归档
+          <span class="tab-num">4</span> 复盘归档
         </button>
       </div>
     </div>
@@ -269,47 +265,26 @@ app.get('/', (c) => {
         <div class="panel-title">信息搜集与分层
           <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Information Gathering & Layering</span>
         </div>
-        <div class="panel-desc">AI 从公开渠道整理信息，并按「公开事实 / 发起方主张 / 当前未知」分层。你可以一键采纳，也可以逐条确认或调整分层归属。</div>
+        <div class="panel-desc">信息与证据直接按层级归类展示。可通过下拉框修改层级归属和可信度评级；来源链接点击直达。「当前未知」栏为空是警告信号。</div>
 
         <div class="ai-notice">
           <i class="fas fa-robot"></i>
           <div>
             <strong>AI 已完成初步整理与分层。</strong>
-            「公开事实」可独立核验；「发起方主张」来自官方营销材料；「当前未知」是目前无法从公开渠道确认的信息。
-            <span style="color:var(--color-orange)">⚠️ 「当前未知」栏必须有内容——过于完整的信息清单往往是信号缺失的预警。</span>
+            绿色列 = 可独立核验的公开事实；橙色列 = 官方宣称但未经独立核验；灰色列 = 目前无法获取或确认。
           </div>
         </div>
-
-        <!-- 操作栏 -->
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-          <div style="display:flex;gap:16px;flex:1">
-            <span style="font-size:13px;color:var(--color-text-secondary)">
-              <i class="fas fa-check-circle" style="color:var(--color-green)"></i>
-              已确认 <strong id="ta-confirmed-count">0</strong> 条
-            </span>
-            <span style="font-size:13px;color:var(--color-text-secondary)">
-              <i class="fas fa-clock" style="color:var(--color-orange)"></i>
-              待确认 <strong id="ta-pending-count">0</strong> 条
-            </span>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="ta-confirm-all">
-            <i class="fas fa-check-double"></i> 一键全部采纳
-          </button>
-        </div>
-
-        <!-- 信息条目列表 -->
-        <div id="ta-items" style="margin-bottom:24px"></div>
 
         <div id="ta-unknown-warning" style="display:none" class="progress-gate"></div>
 
-        <!-- 三栏分层视图 -->
-        <div style="font-size:15px;font-weight:700;margin:24px 0 12px">信息分层视图</div>
+        <!-- 三栏直接展示，信息+证据混合 -->
         <div class="layer-columns">
           <div class="layer-column layer-公开事实">
             <div class="layer-column-header">
               <div class="layer-dot"></div>
               <span class="layer-column-title">公开事实</span>
               <span class="layer-column-count" id="layer-count-公开事实">0</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto">可独立核验</span>
             </div>
             <div class="layer-column-body" id="layer-col-公开事实"></div>
           </div>
@@ -318,6 +293,7 @@ app.get('/', (c) => {
               <div class="layer-dot"></div>
               <span class="layer-column-title">发起方主张</span>
               <span class="layer-column-count" id="layer-count-发起方主张">0</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto">官方宣称</span>
             </div>
             <div class="layer-column-body" id="layer-col-发起方主张"></div>
           </div>
@@ -326,15 +302,10 @@ app.get('/', (c) => {
               <div class="layer-dot"></div>
               <span class="layer-column-title">当前未知</span>
               <span class="layer-column-count" id="layer-count-当前未知">0</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto">无法核验</span>
             </div>
             <div class="layer-column-body" id="layer-col-当前未知"></div>
           </div>
-        </div>
-
-        <!-- 公开证据快照 -->
-        <div style="margin-top:28px">
-          <div style="font-size:15px;font-weight:700;margin-bottom:12px">公开证据快照</div>
-          <div id="ta-evidence-list"></div>
         </div>
       </div>
 
@@ -344,16 +315,14 @@ app.get('/', (c) => {
           <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Assumptions · Evidence · Red Flags</span>
         </div>
         <div class="panel-desc">
-          AI 从 5 个维度（商业化 / 用户 / 技术 / 适配 / 风险）分析当前信息是否自洽，识别悖论信号和红旗。
-          <strong>你需要对每个维度给出判断态度，并对每条红旗完成定级。</strong>
+          AI 从 5 个维度分析当前信息是否自洽。展开每个维度，查看悖论信号、证据，并直接对关联红旗定级、给出你的判断态度。
         </div>
 
         <div class="ai-notice">
           <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
           <div>
             <strong>这是判断核心步骤，需要你深度参与。</strong>
-            每个维度的「乐观前提」是这件事能成立需要相信的条件，悖论信号是与之矛盾的已知信息。
-            请给出「支撑 / 存疑 / 否定」的明确态度，再对每条红旗定级。
+            展开每个维度 → 查看悖论信号 → 对关联红旗定级 → 给出整体态度（支撑 / 存疑 / 否定）。
           </div>
         </div>
 
@@ -363,87 +332,73 @@ app.get('/', (c) => {
           <p>正在加载…</p>
         </div>
 
-        <!-- 维度块 -->
+        <!-- 维度块（红旗在维度内嵌定级） -->
         <div id="tb-dimensions"></div>
-
-        <!-- 红旗汇总区 -->
-        <div style="margin-top:32px">
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px">红旗定级汇总</div>
-          <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px">
-            每条红旗必须定级后，才能推进到决策快照。致命红旗将触发保守边界推荐。
-          </div>
-          <div id="tb-flags"></div>
-        </div>
       </div>
 
       <!-- Tab C: 决策快照 -->
       <div class="tab-panel" id="panel-tc">
         <div class="panel-title">决策快照 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Decision Snapshot</span></div>
-        <div class="panel-desc">将本次判断冻结为可复查的决策基线。投入边界由你来选择，AI 提供参考建议。</div>
+        <div class="panel-desc">每次决策冻结为一个快照版本。快照记录当时的投入边界、各维度态度和跟踪信号，以及修改触发节点。有新信息时可新增快照版本。</div>
 
         <div id="tc-gate" class="progress-gate" style="margin-bottom:20px"></div>
 
-        <div id="tc-snapshot-display"></div>
+        <!-- 已有快照列表（可展开/收缩卡片） -->
+        <div id="tc-snapshots-list"></div>
 
-        <div id="tc-editor">
-          <div class="ai-notice" id="tc-ai-suggestion">
-            <i class="fas fa-robot"></i>
-            <div>AI 正在推断建议边界…</div>
+        <!-- 新建快照编辑区 -->
+        <div id="tc-editor" style="display:none">
+          <div class="snapshot-editor-card">
+            <div class="snapshot-editor-title">
+              <i class="fas fa-plus-circle" style="color:var(--color-blue)"></i>
+              <span id="tc-editor-title-text">新建决策快照</span>
+            </div>
+
+            <div class="ai-notice" id="tc-ai-suggestion" style="margin-bottom:16px">
+              <i class="fas fa-robot"></i>
+              <div>AI 正在推断建议边界…</div>
+            </div>
+
+            <div style="font-size:14px;font-weight:700;margin-bottom:10px">选择投入边界 <span style="font-size:12px;font-weight:400;color:var(--color-red)">（必须由你决定）</span></div>
+            <div class="boundary-selector" id="tc-boundary-selector"></div>
+
+            <hr class="divider">
+
+            <div style="font-size:14px;font-weight:700;margin-bottom:10px">各维度状态 <span style="font-size:12px;font-weight:400;color:var(--color-text-tertiary)">存疑/否定维度可填写跟踪信号</span></div>
+            <div id="tc-dimensions-summary"></div>
+
+            <hr class="divider">
+
+            <div style="font-size:14px;font-weight:700;margin-bottom:10px">决策修改节点</div>
+            <div class="form-group">
+              <label class="form-label">升级触发条件 <span class="label-note">（什么情况下可以提升投入级别）</span></label>
+              <input class="form-input" id="tc-trigger-upgrade" placeholder="例如：若能获取到独立客户验证，可升级到可以接触">
+            </div>
+            <div class="form-group">
+              <label class="form-label">暂停触发条件 <span class="label-note">（什么情况下应立即暂停）</span></label>
+              <input class="form-input" id="tc-trigger-pause" placeholder="例如：若出现安全合规问题或产品停止维护">
+            </div>
+            <div class="form-group">
+              <label class="form-label">退出触发条件 <span class="label-note">（什么情况下彻底退出跟踪）</span></label>
+              <input class="form-input" id="tc-trigger-exit" placeholder="例如：项目方停止更新超过 3 个月">
+            </div>
+            <div class="form-group">
+              <label class="form-label">下次复查时间</label>
+              <input class="form-input" id="tc-review-date" type="date" value="2026-05-01">
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:8px;align-items:center">
+              <button class="btn btn-primary btn-lg" id="tc-generate-snapshot">
+                <i class="fas fa-camera"></i> 冻结快照
+              </button>
+              <button class="btn btn-secondary" id="tc-cancel-editor">取消</button>
+            </div>
           </div>
-
-          <div style="font-size:15px;font-weight:700;margin-bottom:12px">选择投入边界 <span style="font-size:13px;font-weight:400;color:var(--color-red)">（必须由你决定）</span></div>
-          <div class="boundary-selector" id="tc-boundary-selector"></div>
-
-          <hr class="divider">
-
-          <div style="font-size:15px;font-weight:700;margin-bottom:12px">各维度当前状态</div>
-          <div id="tc-dimensions-summary"></div>
-
-          <hr class="divider">
-
-          <div style="font-size:15px;font-weight:700;margin-bottom:12px">决策修改节点</div>
-          <div class="form-group">
-            <label class="form-label">升级触发条件 <span class="label-note">（什么情况下可以提升投入级别）</span></label>
-            <input class="form-input" id="tc-trigger-upgrade" placeholder="例如：若能获取到独立客户验证，可升级到可以接触">
-          </div>
-          <div class="form-group">
-            <label class="form-label">暂停触发条件 <span class="label-note">（什么情况下应立即暂停）</span></label>
-            <input class="form-input" id="tc-trigger-pause" placeholder="例如：若出现安全合规问题或产品停止维护">
-          </div>
-          <div class="form-group">
-            <label class="form-label">退出触发条件 <span class="label-note">（什么情况下彻底退出跟踪）</span></label>
-            <input class="form-input" id="tc-trigger-exit" placeholder="例如：项目方停止更新超过 3 个月">
-          </div>
-          <div class="form-group">
-            <label class="form-label">下次复查时间</label>
-            <input class="form-input" id="tc-review-date" type="date" value="2026-05-01">
-          </div>
-
-          <button class="btn btn-primary btn-lg" id="tc-generate-snapshot" style="margin-top:8px">
-            <i class="fas fa-camera"></i> 生成并冻结决策快照
-          </button>
         </div>
       </div>
 
-      <!-- Tab D: 跟踪信号 -->
+      <!-- Tab D: 复盘归档（原 Tab E） -->
       <div class="tab-panel" id="panel-td">
-        <div class="panel-title">跟踪信号 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Tracking Signals</span></div>
-        <div class="panel-desc">只跟踪"当初支持决策依赖的关键维度，后来有没有被验证"。不跟踪项目全貌。</div>
-
-        <div class="ai-notice">
-          <i class="fas fa-satellite-dish"></i>
-          <div>
-            <strong>聚焦关键假设维度的状态变化。</strong>
-            对每个跟踪信号，选择当前状态：已验证 / 被削弱 / 尚不清楚 / 已否定。
-            如果有维度被否定，请回到 Tab 2 更新态度，再考虑是否需要修改决策快照。
-          </div>
-        </div>
-
-        <div id="td-signals"></div>
-      </div>
-
-      <!-- Tab E: 复盘归档 -->
-      <div class="tab-panel" id="panel-te">
         <div class="panel-title">复盘归档 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Review & Archive</span></div>
         <div class="panel-desc">记录本次判断的过程与结论。如果是错判，<strong style="color:var(--color-red)">错判分析需要你独立思考完成——不提供 AI 初稿。</strong></div>
 
@@ -455,10 +410,10 @@ app.get('/', (c) => {
           </div>
         </div>
 
-        <div id="te-new-review"></div>
+        <div id="td-new-review"></div>
         <hr class="divider">
         <div style="font-size:15px;font-weight:700;margin-bottom:12px">历史复盘记录</div>
-        <div id="te-reviews"></div>
+        <div id="td-reviews"></div>
       </div>
 
     </div><!-- /tab-panels -->

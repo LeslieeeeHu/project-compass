@@ -20,6 +20,7 @@ export interface InfoItem {
   layer: InfoLayer
   aiGenerated: boolean
   userConfirmed: boolean
+  reliability?: 'high' | 'medium' | 'low'
 }
 
 export interface Evidence {

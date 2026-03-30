@@ -39,11 +39,13 @@ const AppState = {
       id: p.id,
       currentBoundary: p.currentBoundary,
       status: p.status,
+      hasNewInfo: p.hasNewInfo,
       allDimensionsReviewed: p.allDimensionsReviewed,
       allFlagsTriaged: p.allFlagsTriaged,
       dimensionBlocks: p.dimensionBlocks,
       redFlags: p.redFlags,
       trackingSignals: p.trackingSignals,
+      snapshots: p.snapshots,
       decisionSnapshot: p.decisionSnapshot,
       reviewNotes: p.reviewNotes,
       infoItems: p.infoItems
@@ -395,10 +397,9 @@ function renderTabAlerts(project) {
   const unassessed = (project.dimensionBlocks || []).filter(d => d.stance === '待评估').length
   if (tbTab) tbTab.classList.toggle('has-alert', unflagged > 0 || unassessed > 0)
 
-  // Tab A: 有新信息 或 有未确认条目
+  // Tab A: 有新信息
   const taTab = document.querySelector('.tab-item[data-tab="ta"]')
-  const unconfirmed = (project.infoItems || []).filter(i => !i.userConfirmed).length
-  if (taTab) taTab.classList.toggle('has-alert', project.hasNewInfo || unconfirmed > 0)
+  if (taTab) taTab.classList.toggle('has-alert', project.hasNewInfo || false)
 }
 
 function switchTab(tabId, project) {
@@ -413,7 +414,6 @@ function switchTab(tabId, project) {
     tb: () => renderTabB(project),
     tc: () => renderTabC(project),
     td: () => renderTabD(project),
-    te: () => renderTabE(project),
   }
   renderers[tabId]?.()
 }
@@ -428,97 +428,18 @@ function initTabNav() {
 }
 
 // ─────────────────────────────────────────────────────
-// Tab A: 信息搜集与分层
+// Tab A: 信息搜集与分层（三列直接展示，下拉框切换层级/可信度）
 // ─────────────────────────────────────────────────────
 function renderTabA(project) {
   const items = project.infoItems || []
-  const pendingCount = items.filter(i => !i.userConfirmed).length
-  const confirmedCount = items.filter(i => i.userConfirmed).length
+  const evidence = project.evidence || []
 
-  document.getElementById('ta-pending-count').textContent = pendingCount
-  document.getElementById('ta-confirmed-count').textContent = confirmedCount
-
-  // 信息条目列表
-  const container = document.getElementById('ta-items')
-  container.innerHTML = items.map(item => `
-    <div class="info-item-card ${item.userConfirmed ? 'confirmed' : 'pending-confirm'}" data-id="${item.id}">
-      <div class="info-item-left">
-        <div class="info-item-content">${item.content}</div>
-        <div class="info-item-source">
-          <i class="fas fa-${item.aiGenerated ? 'robot' : 'user'}"></i>
-          <span>${item.source || 'AI 整理'}</span>
-          ${item.sourceUrl ? `<a href="${item.sourceUrl}" target="_blank" onclick="event.stopPropagation()">
-            <i class="fas fa-external-link-alt"></i>
-          </a>` : ''}
-          &nbsp;·&nbsp;
-          <span class="badge badge-layer-${item.layer}">${item.layer}</span>
-        </div>
-      </div>
-      <div class="info-item-actions">
-        ${item.userConfirmed
-          ? `<span class="info-item-confirmed"><i class="fas fa-check-circle"></i> 已确认</span>`
-          : `<button class="btn btn-primary btn-sm confirm-item-btn" data-id="${item.id}">
-              <i class="fas fa-check"></i> 确认
-            </button>`
-        }
-        <button class="btn btn-secondary btn-sm doubt-item-btn" data-id="${item.id}" title="标记为存疑">
-          <i class="fas fa-question"></i>
-        </button>
-      </div>
-    </div>
-  `).join('')
-
-  // 一键采纳
-  const confirmAllBtn = document.getElementById('ta-confirm-all')
-  if (confirmAllBtn) {
-    // 先移除旧监听，防止重复绑定
-    const newBtn = confirmAllBtn.cloneNode(true)
-    confirmAllBtn.parentNode.replaceChild(newBtn, confirmAllBtn)
-    newBtn.addEventListener('click', () => {
-      project.infoItems.forEach(i => i.userConfirmed = true)
-      AppState.save()
-      showToast('已采纳全部信息', 'success')
-      renderTabA(project)
-      renderTabAlerts(project)
-    })
-  }
-
-  // 单条确认
-  container.querySelectorAll('.confirm-item-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = project.infoItems.find(i => i.id === btn.dataset.id)
-      if (item) {
-        item.userConfirmed = true
-        AppState.save()
-        renderTabA(project)
-        renderTabAlerts(project)
-      }
-    })
-  })
-
-  // 存疑
-  container.querySelectorAll('.doubt-item-btn').forEach(btn => {
-    btn.addEventListener('click', () => showToast('已标记为存疑（功能完善中）', 'warning'))
-  })
-
-  // ─── 分层视图 ───
-  const layers = ['公开事实', '发起方主张', '当前未知']
-  layers.forEach(layer => {
-    const layerItems = items.filter(i => i.layer === layer)
-    const col = document.getElementById(`layer-col-${layer}`)
-    const countEl = document.getElementById(`layer-count-${layer}`)
-    if (countEl) countEl.textContent = layerItems.length
-    if (col) {
-      col.innerHTML = layerItems.length === 0
-        ? `<div style="padding:16px;text-align:center;color:var(--color-text-tertiary);font-size:13px">暂无信息</div>`
-        : layerItems.map(item => `
-          <div class="layer-item">
-            <div>${item.content}</div>
-            <div class="layer-item-source">${item.source || ''}</div>
-          </div>
-        `).join('')
-    }
-  })
+  const layerOptions = ['公开事实', '发起方主张', '当前未知']
+  const reliabilityOptions = [
+    { value: 'high', label: '高可信' },
+    { value: 'medium', label: '中等' },
+    { value: 'low', label: '低可信' }
+  ]
 
   // 未知项警告
   const unknownItems = items.filter(i => i.layer === '当前未知')
@@ -533,31 +454,103 @@ function renderTabA(project) {
     }
   }
 
-  // ─── 公开证据快照 ───
-  const evidenceList = document.getElementById('ta-evidence-list')
-  if (evidenceList) {
-    const evidence = project.evidence || []
-    evidenceList.innerHTML = evidence.length === 0
-      ? `<div style="color:var(--color-text-tertiary);font-size:13px;padding:12px 0">暂无公开证据</div>`
-      : evidence.map(ev => `
-        <div class="evidence-card">
-          <div class="evidence-type-icon evidence-type-${ev.type}">
-            <i class="fas ${getEvidenceIcon(ev.type)}"></i>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-              <span style="font-size:13px;font-weight:600">${ev.title}</span>
-              <span style="font-size:11px;color:var(--color-text-tertiary)">${getEvidenceLabel(ev.type)}</span>
-              <span class="badge badge-reliability-${ev.reliability}">${getReliabilityLabel(ev.reliability)}</span>
+  // ─── 按层级直接渲染三列（信息卡片 + 证据卡片混合） ───
+  const evidenceLayerMap = { high: '公开事实', medium: '发起方主张', low: '当前未知' }
+
+  layerOptions.forEach(layer => {
+    const layerItems = items.filter(i => i.layer === layer)
+    const layerEvidence = evidence.filter(ev => (evidenceLayerMap[ev.reliability] || '当前未知') === layer)
+    const total = layerItems.length + layerEvidence.length
+
+    const col = document.getElementById(`layer-col-${layer}`)
+    const countEl = document.getElementById(`layer-count-${layer}`)
+    if (countEl) countEl.textContent = total
+
+    if (col) {
+      if (total === 0) {
+        col.innerHTML = `<div class="layer-empty">暂无内容</div>`
+      } else {
+        const reliabilitySelectHtml = (itemId, curReliability) => `
+          <select class="layer-mini-select layer-select-reliability" data-item-id="${itemId}">
+            ${reliabilityOptions.map(o => `
+              <option value="${o.value}" ${(curReliability || 'medium') === o.value ? 'selected' : ''}>${o.label}</option>
+            `).join('')}
+          </select>`
+
+        const layerSelectHtml = (itemId, curLayer) => `
+          <select class="layer-mini-select layer-select-layer" data-item-id="${itemId}">
+            ${layerOptions.map(l => `
+              <option value="${l}" ${curLayer === l ? 'selected' : ''}>${l}</option>
+            `).join('')}
+          </select>`
+
+        const infoCards = layerItems.map(item => `
+          <div class="layer-card layer-card-info" data-item-id="${item.id}">
+            <div class="layer-card-content">${item.content}</div>
+            <div class="layer-card-footer">
+              <div class="layer-card-meta">
+                <i class="fas fa-${item.aiGenerated ? 'robot' : 'user'}" style="color:var(--color-text-tertiary)"></i>
+                <span class="layer-card-source">${item.source || 'AI 整理'}</span>
+                ${item.sourceUrl ? `<a href="${item.sourceUrl}" target="_blank" onclick="event.stopPropagation()" class="layer-card-link">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>` : ''}
+              </div>
+              <div class="layer-card-actions">
+                ${reliabilitySelectHtml(item.id, item.reliability)}
+                ${layerSelectHtml(item.id, item.layer)}
+              </div>
             </div>
-            <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.5">${ev.summary}</div>
-            ${ev.url ? `<a href="${ev.url}" target="_blank" style="font-size:11px;margin-top:4px;display:inline-block">
-              <i class="fas fa-external-link-alt"></i> 查看来源
-            </a>` : ''}
           </div>
-        </div>
-      `).join('')
-  }
+        `).join('')
+
+        const evidenceCards = layerEvidence.map(ev => `
+          <div class="layer-card layer-card-evidence">
+            <div class="layer-card-ev-header">
+              <div class="evidence-type-icon evidence-type-${ev.type} evidence-type-sm">
+                <i class="fas ${getEvidenceIcon(ev.type)}"></i>
+              </div>
+              <span class="layer-card-ev-label">${getEvidenceLabel(ev.type)}</span>
+              <span class="badge badge-reliability-${ev.reliability}" style="margin-left:auto;font-size:10px">${getReliabilityLabel(ev.reliability)}</span>
+            </div>
+            <div class="layer-card-content">${ev.title}：${ev.summary}</div>
+            ${ev.url ? `<div class="layer-card-footer" style="padding-top:6px">
+              <a href="${ev.url}" target="_blank" class="layer-card-link">
+                <i class="fas fa-external-link-alt"></i> 查看来源
+              </a>
+            </div>` : ''}
+          </div>
+        `).join('')
+
+        col.innerHTML = infoCards + evidenceCards
+
+        // 绑定下拉框事件（直接在列内绑定，避免全局冲突）
+        col.querySelectorAll('.layer-select-reliability').forEach(sel => {
+          sel.addEventListener('change', () => {
+            const item = project.infoItems.find(i => i.id === sel.dataset.itemId)
+            if (item) {
+              item.reliability = sel.value
+              AppState.save()
+              // 证据归列是按 evidence.reliability 决定的，infoItem 的可信度不影响归列
+              // 只需更新 badge 颜色，不需要全量重渲染（避免页面跳动）
+              showToast(`可信度已更新为「${getReliabilityLabel(sel.value)}」`, 'info')
+            }
+          })
+        })
+
+        col.querySelectorAll('.layer-select-layer').forEach(sel => {
+          sel.addEventListener('change', () => {
+            const item = project.infoItems.find(i => i.id === sel.dataset.itemId)
+            if (item) {
+              item.layer = sel.value
+              AppState.save()
+              renderTabA(project) // 层级变化需要重新归列
+              showToast(`层级已移至「${sel.value}」`, 'info')
+            }
+          })
+        })
+      }
+    }
+  })
 }
 
 // ─────────────────────────────────────────────────────
@@ -609,7 +602,7 @@ function renderTabB(project) {
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:700;color:${dimColor}">${dim.dimension}</span>
-            <span class="badge badge-stance-${dim.stance}">${dim.stance}</span>
+            <span class="badge badge-stance-${dim.stance} badge-stance-wrapper">${dim.stance}</span>
             ${dim.aiGenerated ? '<span style="font-size:11px;color:var(--color-text-tertiary)"><i class="fas fa-robot"></i> AI生成</span>' : ''}
           </div>
           <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.5">
@@ -662,15 +655,37 @@ function renderTabB(project) {
           `).join('')}
         </div>` : ''}
 
-        <!-- 关联红旗 -->
+        <!-- 关联红旗（直接内嵌定级） -->
         ${relFlags.length > 0 ? `
         <div class="dim-section">
-          <div class="dim-section-title"><i class="fas fa-flag" style="color:var(--color-red)"></i> 关联红旗</div>
+          <div class="dim-section-title"><i class="fas fa-flag" style="color:var(--color-red)"></i> 关联红旗 <span style="font-size:12px;font-weight:400;color:var(--color-text-tertiary)">直接定级</span></div>
           ${relFlags.map(f => `
-            <div class="assumption-evidence-item" style="color:var(--color-red)">
-              <i class="fas fa-flag" style="color:var(--color-red)"></i>
-              ${f.content}
-              ${f.level ? `<span class="badge badge-flag-${f.level}" style="margin-left:6px">${f.level}</span>` : '<span style="font-size:11px;color:var(--color-orange);margin-left:6px">待定级</span>'}
+            <div class="inline-flag-card level-${f.level}" id="iflag-${f.id}">
+              <div class="inline-flag-content">
+                <i class="fas fa-flag" style="color:var(--color-red);flex-shrink:0;margin-top:2px"></i>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;color:var(--color-text-primary);line-height:1.5;margin-bottom:8px">${f.content}</div>
+                  <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px">类别：${f.category} &nbsp;·&nbsp; ${f.aiGenerated ? 'AI 识别' : '手动添加'}</div>
+                  <div class="flag-level-selector" style="flex-wrap:wrap;gap:6px">
+                    ${['致命', '需关注', '已解释'].map(level => `
+                      <button class="flag-level-btn ${f.level === level ? `selected-${level}` : ''}"
+                              data-flag="${f.id}" data-level="${level}">
+                        ${level === '致命' ? '⛔ 致命' : level === '需关注' ? '⚠️ 需关注' : '✅ 已解释'}
+                      </button>
+                    `).join('')}
+                  </div>
+                  ${f.level === '已解释' ? `
+                  <div class="flag-user-note" style="margin-top:8px">
+                    <input type="text" placeholder="请简要说明如何解释这条红旗…"
+                      value="${f.userNote || ''}"
+                      data-flag="${f.id}" class="flag-note-input" />
+                  </div>` : ''}
+                  ${f.level === null ? `
+                  <div class="flag-pending-hint" style="font-size:12px;color:var(--color-orange);margin-top:6px">
+                    <i class="fas fa-exclamation-circle"></i> 待定级
+                  </div>` : ''}
+                </div>
+              </div>
             </div>
           `).join('')}
         </div>` : ''}
@@ -681,10 +696,9 @@ function renderTabB(project) {
             <i class="fas fa-brain" style="color:var(--color-blue)"></i>
             你的判断：这个维度的前提是否成立？
           </div>
-          ${dim.stance === '待评估'
-            ? `<div style="font-size:13px;color:var(--color-orange);margin-bottom:8px">⚠️ 请根据以上证据和悖论信号给出你的判断。</div>`
-            : `<div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px">当前态度：<strong>${dim.stance}</strong>。如需修改，请重新选择。</div>`
-          }
+          <div class="dim-stance-hint" style="font-size:13px;margin-bottom:8px;color:${dim.stance === '待评估' ? 'var(--color-orange)' : 'var(--color-text-secondary)'}">
+            ${dim.stance === '待评估' ? '⚠️ 请根据以上证据和悖论信号给出你的判断。' : `当前态度：${dim.stance}。如需修改，请重新选择。`}
+          </div>
           <div class="stance-selector">
             ${['支撑', '存疑', '否定'].map(s => `
               <button class="stance-btn ${dim.stance === s ? `selected-${s}` : ''}"
@@ -692,16 +706,16 @@ function renderTabB(project) {
             `).join('')}
           </div>
           ${dim.stance !== '待评估' ? `
-          <div class="gate-complete" style="margin-top:8px;padding:8px 12px">
+          <div class="gate-complete dim-stance-gate" style="margin-top:8px;padding:8px 12px">
             <i class="fas fa-check-circle"></i>
             <p>已完成评估 — 态度：${dim.stance}</p>
-          </div>` : ''}
+          </div>` : `<div class="dim-stance-gate" style="display:none"></div>`}
         </div>
       </div>
     </div>`
   }).join('')
 
-  // 维度展开/折叠事件
+  // 维度态度选择——局部更新，不重渲染整个 Tab B（避免收缩）
   dimContainer.querySelectorAll('.stance-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -710,73 +724,86 @@ function renderTabB(project) {
         dim.stance = btn.dataset.stance
         project.allDimensionsReviewed = project.dimensionBlocks.every(d => d.stance !== '待评估')
         AppState.save()
-        renderTabB(project)
+        // 局部更新：只刷新该维度卡片的 stance class 和 badge、态度区文字
+        const card = dimContainer.querySelector(`.dimension-card[data-id="${dim.id}"]`)
+        if (card) {
+          card.className = `dimension-card stance-${dim.stance}`
+          const stanceBadge = card.querySelector('.badge-stance-wrapper')
+          if (stanceBadge) stanceBadge.className = `badge badge-stance-${dim.stance}`
+          // 更新所有同维度的 stance-btn 选中状态
+          card.querySelectorAll('.stance-btn').forEach(b => {
+            b.className = `stance-btn ${dim.stance === b.dataset.stance ? `selected-${dim.stance}` : ''}`
+          })
+          // 更新完成状态区
+          const stanceArea = card.querySelector('.dim-stance-area')
+          if (stanceArea) {
+            const gateEl = stanceArea.querySelector('.dim-stance-gate')
+            if (gateEl) {
+              gateEl.className = 'gate-complete'
+              gateEl.innerHTML = `<i class="fas fa-check-circle"></i><p>已完成评估 — 态度：${dim.stance}</p>`
+            }
+            // 更新提示文字
+            const hintEl = stanceArea.querySelector('.dim-stance-hint')
+            if (hintEl) hintEl.textContent = `当前态度：${dim.stance}。如需修改，请重新选择。`
+          }
+        }
+        // 更新进度 gate
+        updateTbProgressGate(project)
         renderTabAlerts(project)
         showToast(`「${dim.dimension}」已标记为「${btn.dataset.stance}」`, 'success')
       }
     })
   })
 
-  // ─── 渲染红旗汇总 ───
-  const flagContainer = document.getElementById('tb-flags')
-  if (!flagContainer) return
-
-  if (flags.length === 0) {
-    flagContainer.innerHTML = `<div style="color:var(--color-text-tertiary);font-size:13px;padding:12px 0">暂无识别出的红旗</div>`
-    return
-  }
-
-  flagContainer.innerHTML = flags.map(flag => `
-    <div class="redflag-card level-${flag.level}" id="flag-${flag.id}">
-      <div class="redflag-icon"><i class="fas fa-flag"></i></div>
-      <div class="redflag-body">
-        <div class="redflag-content">${flag.content}</div>
-        <div class="redflag-category">
-          类别：${flag.category} &nbsp;·&nbsp; 关联维度：${(project.dimensionBlocks.find(d => d.id === flag.dimensionId) || {}).dimension || '—'} &nbsp;·&nbsp;
-          ${flag.aiGenerated ? 'AI 识别' : '手动添加'}
-        </div>
-        <div style="font-size:12px;font-weight:600;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
-          你的处理结果
-        </div>
-        <div class="flag-level-selector">
-          ${['致命', '需关注', '已解释'].map(level => `
-            <button class="flag-level-btn ${flag.level === level ? `selected-${level}` : ''}"
-                    data-flag="${flag.id}" data-level="${level}">
-              ${level === '致命' ? '⛔ 致命' : level === '需关注' ? '⚠️ 需关注' : '✅ 已解释'}
-            </button>
-          `).join('')}
-        </div>
-        ${flag.level === '已解释' ? `
-        <div class="flag-user-note">
-          <input type="text" placeholder="请简要说明如何解释这条红旗…"
-            value="${flag.userNote || ''}"
-            data-flag="${flag.id}" class="flag-note-input" />
-        </div>` : ''}
-        ${flag.level === null ? `
-        <div style="font-size:12px;color:var(--color-orange);margin-top:8px">
-          <i class="fas fa-exclamation-circle"></i> 待处理 — 请选择处理结果
-        </div>` : ''}
-      </div>
-    </div>
-  `).join('')
-
-  // 红旗级别选择
-  flagContainer.querySelectorAll('.flag-level-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  // 红旗定级——局部更新，不重渲染整个 Tab B
+  dimContainer.querySelectorAll('.flag-level-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
       const flag = project.redFlags.find(f => f.id === btn.dataset.flag)
       if (flag) {
         flag.level = btn.dataset.level
         project.allFlagsTriaged = project.redFlags.every(f => f.level !== null)
         AppState.save()
-        renderTabB(project)
+        // 局部更新：只刷新该红旗卡片
+        const flagCard = dimContainer.querySelector(`#iflag-${flag.id}`)
+        if (flagCard) {
+          flagCard.className = `inline-flag-card level-${flag.level}`
+          // 更新按钮选中状态
+          flagCard.querySelectorAll('.flag-level-btn').forEach(b => {
+            b.className = `flag-level-btn ${flag.level === b.dataset.level ? `selected-${flag.level}` : ''}`
+          })
+          // 更新解释输入框显示
+          const noteWrap = flagCard.querySelector('.flag-user-note-wrap')
+          if (flag.level === '已解释') {
+            if (!noteWrap) {
+              const actionDiv = flagCard.querySelector('.flag-level-selector')
+              if (actionDiv) {
+                const noteDiv = document.createElement('div')
+                noteDiv.className = 'flag-user-note flag-user-note-wrap'
+                noteDiv.style.marginTop = '8px'
+                noteDiv.innerHTML = `<input type="text" placeholder="请简要说明如何解释这条红旗…" value="${flag.userNote || ''}" data-flag="${flag.id}" class="flag-note-input" />`
+                actionDiv.after(noteDiv)
+                noteDiv.querySelector('.flag-note-input').addEventListener('blur', (ev) => {
+                  flag.userNote = ev.target.value; AppState.save()
+                })
+              }
+            }
+          } else if (noteWrap) {
+            noteWrap.remove()
+          }
+          // 移除待定级提示
+          const pendingHint = flagCard.querySelector('.flag-pending-hint')
+          if (pendingHint) pendingHint.remove()
+        }
+        updateTbProgressGate(project)
         renderTabAlerts(project)
-        showToast(`红旗已标记为「${btn.dataset.level}」`, 'success')
+        showToast(`红旗已标记为「${flag.level}」`, 'success')
       }
     })
   })
 
-  // 解释说明
-  flagContainer.querySelectorAll('.flag-note-input').forEach(input => {
+  // 解释说明输入
+  dimContainer.querySelectorAll('.flag-note-input').forEach(input => {
     input.addEventListener('blur', () => {
       const flag = project.redFlags.find(f => f.id === input.dataset.flag)
       if (flag) { flag.userNote = input.value; AppState.save() }
@@ -793,8 +820,29 @@ window.toggleDimension = function(id) {
   }
 }
 
+// 只更新 Tab B 的进度 gate，不触发整体重渲染
+function updateTbProgressGate(project) {
+  const dims = project.dimensionBlocks || []
+  const flags = project.redFlags || []
+  const unassessed = dims.filter(d => d.stance === '待评估').length
+  const unhandled = flags.filter(f => f.level === null).length
+  const gateEl = document.getElementById('tb-progress-gate')
+  if (!gateEl) return
+  const total = unassessed + unhandled
+  if (total > 0) {
+    const parts = []
+    if (unassessed > 0) parts.push(`<strong>${unassessed} 个维度</strong>尚未给出态度`)
+    if (unhandled > 0) parts.push(`<strong>${unhandled} 条红旗</strong>未完成定级`)
+    gateEl.className = 'progress-gate'
+    gateEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i><p>${parts.join('，')}——完成后方可生成决策快照。</p>`
+  } else {
+    gateEl.className = 'gate-complete'
+    gateEl.innerHTML = `<i class="fas fa-check-circle"></i><p>所有维度已评估，所有红旗已定级！可以进入决策快照。</p>`
+  }
+}
+
 // ─────────────────────────────────────────────────────
-// Tab C: 决策快照
+// Tab C: 决策快照（多版本可展开卡片 + 跟踪信号内嵌）
 // ─────────────────────────────────────────────────────
 function renderTabC(project) {
   const dims = project.dimensionBlocks || []
@@ -802,6 +850,15 @@ function renderTabC(project) {
   const allFlagsTriaged = project.redFlags.every(f => f.level !== null)
   const canProceed = allDimsDone && allFlagsTriaged
 
+  // 初始化 snapshots 数组（兼容旧的 decisionSnapshot 单对象）
+  if (!project.snapshots) {
+    project.snapshots = []
+    if (project.decisionSnapshot) {
+      project.snapshots.push(project.decisionSnapshot)
+    }
+  }
+
+  // 进度 gate
   const gateEl = document.getElementById('tc-gate')
   if (gateEl) {
     if (!canProceed) {
@@ -818,21 +875,162 @@ function renderTabC(project) {
       `
     } else {
       gateEl.className = 'gate-complete'
-      gateEl.innerHTML = `<i class="fas fa-unlock"></i><p>所有前置步骤已完成，可以生成决策快照。</p>`
+      gateEl.innerHTML = `<i class="fas fa-unlock"></i><p>前置步骤已完成，可以生成或更新决策快照。</p>`
     }
   }
 
-  if (project.decisionSnapshot?.frozenAt) {
-    renderFrozenSnapshot(project)
-    const editor = document.getElementById('tc-editor')
-    if (editor) editor.style.display = 'none'
-    return
+  // ─── 渲染已有快照列表 ───
+  const listEl = document.getElementById('tc-snapshots-list')
+  if (listEl) {
+    if (project.snapshots.length === 0) {
+      listEl.innerHTML = canProceed ? `
+        <div class="snapshot-empty">
+          <i class="fas fa-camera" style="font-size:28px;opacity:0.25;display:block;margin-bottom:8px"></i>
+          <p>还没有决策快照。完成维度评估和红旗定级后，可以新建第一个快照。</p>
+          <button class="btn btn-primary" id="tc-new-snap-btn" style="margin-top:12px">
+            <i class="fas fa-plus"></i> 新建决策快照
+          </button>
+        </div>` : `<div class="snapshot-empty"><p style="color:var(--color-text-tertiary);font-size:13px">请先完成 Tab 2 的评估和定级，再创建决策快照。</p></div>`
+    } else {
+      // 有新信息提示 + 新建按钮
+      const newSnapBtn = project.hasNewInfo ? `
+        <div class="snapshot-new-info-bar">
+          <i class="fas fa-bell" style="color:var(--color-orange)"></i>
+          <span>检测到新增信息，建议在评估更新后<strong>新建快照版本</strong>记录变化。</span>
+          <button class="btn btn-primary btn-sm" id="tc-new-snap-btn">
+            <i class="fas fa-plus"></i> 新建快照
+          </button>
+        </div>` : `
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <button class="btn btn-secondary btn-sm" id="tc-new-snap-btn">
+            <i class="fas fa-plus"></i> 新建快照版本
+          </button>
+        </div>`
+
+      const snapCards = project.snapshots.map((snap, idx) => {
+        const isLatest = idx === project.snapshots.length - 1
+        const keyDims = dims.filter(d => (snap.keyDimensions || []).includes(d.id))
+        const expandId = `snap-body-${snap.id}`
+        const chevronId = `snap-chevron-${snap.id}`
+
+        // 跟踪信号维度（存疑/否定）
+        const watchDims = keyDims.filter(d => d.stance === '存疑' || d.stance === '否定')
+
+        return `
+        <div class="snapshot-card ${isLatest ? 'snapshot-card-latest' : ''}">
+          <div class="snapshot-card-header" onclick="toggleSnapshot('${snap.id}')">
+            <div class="snapshot-card-left">
+              <div class="snapshot-card-badge-row">
+                ${isLatest ? '<span class="snapshot-latest-tag">最新</span>' : ''}
+                <span class="badge badge-boundary-${snap.boundary}">
+                  <i class="fas ${getBoundaryIcon(snap.boundary)}"></i> ${snap.boundary}
+                </span>
+              </div>
+              <div class="snapshot-card-meta">冻结于 ${snap.frozenAt} · 复查日期 ${snap.reviewDate}</div>
+            </div>
+            <i class="fas fa-chevron-down snap-chevron" id="${chevronId}" style="color:var(--color-text-tertiary);font-size:12px;transition:transform 0.2s;flex-shrink:0;${isLatest ? 'transform:rotate(180deg)' : ''}"></i>
+          </div>
+
+          <div class="snapshot-card-body${isLatest ? ' expanded' : ''}" id="${expandId}">
+            <!-- 各维度态度 -->
+            <div class="snapshot-section-title" style="margin-bottom:10px">各维度态度</div>
+            ${keyDims.map(d => `
+              <div class="snapshot-dim-row">
+                <span class="badge badge-stance-${d.stance}" style="flex-shrink:0">${d.stance}</span>
+                <span style="font-weight:600;color:${getDimensionColor(d.dimension)};flex-shrink:0;font-size:12px">
+                  <i class="fas ${getDimensionIcon(d.dimension)}"></i> ${d.dimension}
+                </span>
+                <span style="color:var(--color-text-secondary);font-size:12px">${d.optimisticPremise.slice(0,45)}${d.optimisticPremise.length > 45 ? '…' : ''}</span>
+              </div>
+            `).join('')}
+
+            ${watchDims.length > 0 ? `
+            <!-- 跟踪信号（存疑/否定维度） -->
+            <div class="snapshot-section-title" style="margin-top:14px;margin-bottom:10px">
+              <i class="fas fa-satellite-dish" style="color:var(--color-orange);margin-right:4px"></i>
+              跟踪信号
+              <span style="font-size:11px;font-weight:400;color:var(--color-text-tertiary)">存疑/否定维度需要持续关注的信号</span>
+            </div>
+            ${watchDims.map(d => {
+              const signalKey = `snap-signal-${snap.id}-${d.id}`
+              const signalVal = (snap.trackingSignals || {})[d.id] || ''
+              return `
+              <div class="snapshot-signal-row">
+                <div class="snapshot-signal-dim">
+                  <span class="badge badge-stance-${d.stance}" style="flex-shrink:0">${d.stance}</span>
+                  <span style="color:${getDimensionColor(d.dimension)};font-weight:600;font-size:12px">
+                    <i class="fas ${getDimensionIcon(d.dimension)}"></i> ${d.dimension}
+                  </span>
+                </div>
+                <input class="form-input snap-signal-input" style="font-size:12px;padding:6px 10px"
+                  placeholder="关注什么信号？例如：是否有独立用户评价出现…"
+                  value="${signalVal}"
+                  data-snap-id="${snap.id}" data-dim-id="${d.id}" />
+              </div>`
+            }).join('')}` : ''}
+
+            <!-- 决策修改节点 -->
+            <div class="snapshot-section-title" style="margin-top:14px;margin-bottom:8px">决策修改节点</div>
+            <div class="snapshot-trigger-row">
+              <span class="snapshot-trigger-icon" style="color:var(--color-green)"><i class="fas fa-arrow-up"></i></span>
+              <span><strong>升级：</strong>${snap.modificationTriggers?.upgrade || '—'}</span>
+            </div>
+            <div class="snapshot-trigger-row">
+              <span class="snapshot-trigger-icon" style="color:var(--color-orange)"><i class="fas fa-pause"></i></span>
+              <span><strong>暂停：</strong>${snap.modificationTriggers?.pause || '—'}</span>
+            </div>
+            <div class="snapshot-trigger-row">
+              <span class="snapshot-trigger-icon" style="color:var(--color-red)"><i class="fas fa-times"></i></span>
+              <span><strong>退出：</strong>${snap.modificationTriggers?.exit || '—'}</span>
+            </div>
+          </div>
+        </div>`
+      }).join('')
+
+      listEl.innerHTML = newSnapBtn + snapCards
+    }
+
+    // 绑定新建快照按钮
+    const newSnapBtnEl = document.getElementById('tc-new-snap-btn')
+    if (newSnapBtnEl) {
+      newSnapBtnEl.addEventListener('click', () => openSnapshotEditor(project))
+    }
+
+    // 绑定跟踪信号输入
+    listEl.querySelectorAll('.snap-signal-input').forEach(input => {
+      input.addEventListener('blur', () => {
+        const snap = project.snapshots.find(s => s.id === input.dataset.snapId)
+        if (snap) {
+          if (!snap.trackingSignals) snap.trackingSignals = {}
+          snap.trackingSignals[input.dataset.dimId] = input.value
+          AppState.save()
+        }
+      })
+    })
   }
 
-  const editor = document.getElementById('tc-editor')
-  if (editor) editor.style.display = 'block'
-  const snapDisplay = document.getElementById('tc-snapshot-display')
-  if (snapDisplay) snapDisplay.innerHTML = ''
+  // 绑定编辑区按钮
+  const genBtn = document.getElementById('tc-generate-snapshot')
+  if (genBtn) {
+    const newBtn = genBtn.cloneNode(true)
+    genBtn.parentNode.replaceChild(newBtn, genBtn)
+    newBtn.addEventListener('click', generateSnapshot)
+  }
+
+  const cancelBtn = document.getElementById('tc-cancel-editor')
+  if (cancelBtn) {
+    const newBtn = cancelBtn.cloneNode(true)
+    cancelBtn.parentNode.replaceChild(newBtn, cancelBtn)
+    newBtn.addEventListener('click', () => {
+      const editor = document.getElementById('tc-editor')
+      if (editor) editor.style.display = 'none'
+    })
+  }
+}
+
+// 打开新建快照编辑区
+function openSnapshotEditor(project) {
+  const dims = project.dimensionBlocks || []
 
   // AI 推荐边界
   const fatalFlags = project.redFlags.filter(f => f.level === '致命').length
@@ -844,10 +1042,10 @@ function renderTabC(project) {
     suggestionReason = `存在 ${fatalFlags} 个致命红旗、${deniedDims} 个维度被否定`
   } else if (dims.filter(d => d.stance === '存疑').length >= 3) {
     suggestedBoundary = '继续观察'
-    suggestionReason = '多个维度仍处于存疑状态，信息不足以推进'
+    suggestionReason = '多个维度仍处于存疑状态'
   } else if (dims.filter(d => d.stance === '支撑').length >= 3) {
     suggestedBoundary = '可以接触'
-    suggestionReason = '多个关键维度有较强支撑，可进行初步接触验证'
+    suggestionReason = '多个关键维度有较强支撑'
   }
 
   const aiNotice = document.getElementById('tc-ai-suggestion')
@@ -864,10 +1062,10 @@ function renderTabC(project) {
 
   // 边界选择器
   const boundaries = [
-    { key: '暂不继续', icon: '🚫', desc: '当前证据不足以支持任何形式投入，等待更多公开信号' },
-    { key: '继续观察', icon: '👀', desc: '可持续关注公开信息更新，但暂不主动接触或投入资源' },
-    { key: '可以接触', icon: '🤝', desc: '可进行初步接触（如预约 demo），不承诺资源投入' },
-    { key: '可以投入有限试点', icon: '🚀', desc: '在明确的资源上限内，可投入试点预算和有限实施时间' }
+    { key: '暂不继续', icon: '🚫', desc: '当前证据不足以支持任何形式投入' },
+    { key: '继续观察', icon: '👀', desc: '关注公开信息更新，暂不主动接触或投入' },
+    { key: '可以接触', icon: '🤝', desc: '可进行初步接触（如预约 demo），不承诺投入' },
+    { key: '可以投入有限试点', icon: '🚀', desc: '在明确资源上限内，可投入试点预算' }
   ]
 
   const selectorEl = document.getElementById('tc-boundary-selector')
@@ -882,25 +1080,27 @@ function renderTabC(project) {
     `).join('')
   }
 
-  // 维度状态摘要
+  // 维度状态摘要（含跟踪信号输入）
   const dimSummary = document.getElementById('tc-dimensions-summary')
   if (dimSummary) {
-    dimSummary.innerHTML = dims.map(d => `
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:13px">
-        <span class="badge badge-stance-${d.stance}" style="flex-shrink:0">${d.stance}</span>
-        <span style="font-weight:600;color:${getDimensionColor(d.dimension)};flex-shrink:0">${d.dimension}</span>
-        <span style="color:var(--color-text-secondary)">${d.optimisticPremise}</span>
-      </div>
-    `).join('')
+    dimSummary.innerHTML = dims.map(d => {
+      const needsSignal = d.stance === '存疑' || d.stance === '否定'
+      return `
+        <div class="tc-dim-summary-row">
+          <span class="badge badge-stance-${d.stance}" style="flex-shrink:0">${d.stance}</span>
+          <span style="font-weight:600;color:${getDimensionColor(d.dimension)};flex-shrink:0;font-size:13px">${d.dimension}</span>
+          <span style="color:var(--color-text-secondary);font-size:13px;flex:1">${d.optimisticPremise.slice(0,40)}${d.optimisticPremise.length > 40 ? '…' : ''}</span>
+          ${needsSignal ? `
+          <input class="form-input tc-signal-input" style="font-size:12px;padding:5px 8px;max-width:220px"
+            placeholder="关注信号（可选）…" data-dim-id="${d.id}" />` : ''}
+        </div>
+      `
+    }).join('')
   }
 
-  // 绑定生成按钮
-  const genBtn = document.getElementById('tc-generate-snapshot')
-  if (genBtn) {
-    const newBtn = genBtn.cloneNode(true)
-    genBtn.parentNode.replaceChild(newBtn, genBtn)
-    newBtn.addEventListener('click', generateSnapshot)
-  }
+  const editor = document.getElementById('tc-editor')
+  if (editor) editor.style.display = 'block'
+  editor.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 window.selectBoundaryC = function(boundary) {
@@ -908,7 +1108,11 @@ window.selectBoundaryC = function(boundary) {
   if (project) {
     project.currentBoundary = boundary
     AppState.save()
-    renderTabC(project)
+    // 只更新边界选择器，不重渲染整个 Tab
+    document.querySelectorAll('.boundary-option').forEach(el => {
+      const b = el.dataset.boundary
+      el.className = `boundary-option ${boundary === b ? `selected-${b}` : ''}`
+    })
     showToast(`投入边界已设为「${boundary}」`, 'success')
   }
 }
@@ -919,12 +1123,22 @@ function generateSnapshot() {
   if (!project.redFlags.every(f => f.level !== null)) {
     showToast('请先完成 Tab 2 红旗定级', 'warning'); return
   }
+  if (!project.currentBoundary) {
+    showToast('请先选择投入边界', 'warning'); return
+  }
+
+  // 收集跟踪信号
+  const trackingSignals = {}
+  document.querySelectorAll('.tc-signal-input').forEach(input => {
+    if (input.value.trim()) trackingSignals[input.dataset.dimId] = input.value.trim()
+  })
 
   const snapshot = {
     id: `snapshot-${Date.now()}`,
     createdAt: new Date().toLocaleDateString('zh-CN'),
     boundary: project.currentBoundary,
     keyDimensions: (project.dimensionBlocks || []).map(d => d.id),
+    trackingSignals,
     modificationTriggers: {
       upgrade: document.getElementById('tc-trigger-upgrade')?.value || '若关键维度得到独立验证，可升级至上一层边界',
       pause: document.getElementById('tc-trigger-pause')?.value || '若出现致命红旗或关键维度被否定，立即暂停',
@@ -934,173 +1148,64 @@ function generateSnapshot() {
     frozenAt: new Date().toLocaleDateString('zh-CN')
   }
 
-  project.decisionSnapshot = snapshot
+  if (!project.snapshots) project.snapshots = []
+  project.snapshots.push(snapshot)
+  project.decisionSnapshot = snapshot // 兼容旧逻辑
   if (project.status === '未支持') project.status = '支持中'
+  project.hasNewInfo = false // 清除新信息标记
   AppState.save()
-  showToast('决策快照已生成并冻结 🎉', 'success')
+  showToast('决策快照已冻结 🎉', 'success')
+  const editor = document.getElementById('tc-editor')
+  if (editor) editor.style.display = 'none'
   renderTabC(project)
 }
 
-function renderFrozenSnapshot(project) {
-  const snap = project.decisionSnapshot
-  const container = document.getElementById('tc-snapshot-display')
-  if (!container) return
-
-  const keyDims = (project.dimensionBlocks || []).filter(d => snap.keyDimensions.includes(d.id))
-
-  container.innerHTML = `
-    <div class="snapshot-frozen">
-      <div class="snapshot-frozen-header">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-          <i class="fas fa-camera" style="font-size:20px;opacity:0.8"></i>
-          <div>
-            <div class="snapshot-frozen-title">决策快照 · 已冻结</div>
-            <div class="snapshot-frozen-meta">冻结于 ${snap.frozenAt} · 复查日期 ${snap.reviewDate}</div>
-          </div>
-        </div>
-        <div>
-          <span class="badge badge-boundary-${snap.boundary}" style="font-size:14px;padding:4px 14px">
-            <i class="fas ${getBoundaryIcon(snap.boundary)}"></i> ${snap.boundary}
-          </span>
-        </div>
-      </div>
-      <div class="snapshot-frozen-body">
-        <div>
-          <div class="snapshot-section-title">各维度态度</div>
-          ${keyDims.map(d => `
-            <div class="snapshot-item">
-              <i class="fas ${getDimensionIcon(d.dimension)}" style="color:${getDimensionColor(d.dimension)}"></i>
-              <span>[${d.stance}] <strong>${d.dimension}</strong>：${d.optimisticPremise.slice(0,40)}…</span>
-            </div>
-          `).join('')}
-        </div>
-        <div>
-          <div class="snapshot-section-title">决策修改节点</div>
-          <div class="snapshot-item"><i class="fas fa-arrow-up" style="color:var(--color-green)"></i><span><strong>升级：</strong>${snap.modificationTriggers.upgrade}</span></div>
-          <div class="snapshot-item"><i class="fas fa-pause" style="color:var(--color-orange)"></i><span><strong>暂停：</strong>${snap.modificationTriggers.pause}</span></div>
-          <div class="snapshot-item"><i class="fas fa-times" style="color:var(--color-red)"></i><span><strong>退出：</strong>${snap.modificationTriggers.exit}</span></div>
-        </div>
-      </div>
-      <div style="padding:16px 24px;border-top:1px solid var(--color-border);display:flex;gap:12px">
-        <button class="btn btn-secondary btn-sm" onclick="unfreezeSnapshot()">
-          <i class="fas fa-edit"></i> 修改快照
-        </button>
-        <span style="font-size:12px;color:var(--color-text-tertiary);align-self:center">
-          修改前请确认已有新信号变化
-        </span>
-      </div>
-    </div>
-  `
-}
-
-window.unfreezeSnapshot = function() {
-  const project = AppState.getProject(AppState.currentProjectId)
-  if (project?.decisionSnapshot) {
-    project.decisionSnapshot.frozenAt = undefined
-    AppState.save()
-    renderTabC(project)
+window.toggleSnapshot = function(id) {
+  const body = document.getElementById(`snap-body-${id}`)
+  const chevron = document.getElementById(`snap-chevron-${id}`)
+  if (body) {
+    const expanded = body.classList.toggle('expanded')
+    if (chevron) chevron.style.transform = expanded ? 'rotate(180deg)' : ''
   }
 }
 
 // ─────────────────────────────────────────────────────
-// Tab D: 跟踪信号
+// Tab D: 复盘归档（原 Tab E）
 // ─────────────────────────────────────────────────────
 function renderTabD(project) {
-  const container = document.getElementById('td-signals')
+  const reviewContainer = document.getElementById('td-reviews')
+  const newReviewEl = document.getElementById('td-new-review')
 
-  if (!project.decisionSnapshot) {
-    container.innerHTML = `
-      <div class="progress-gate">
-        <i class="fas fa-lock"></i>
-        <p>请先在「决策快照」Tab 生成快照，再开始跟踪信号。</p>
-      </div>`
-    return
-  }
-
-  if (!project.trackingSignals || project.trackingSignals.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <i class="fas fa-satellite-dish"></i>
-        <p>暂无跟踪信号，可在决策快照后添加</p>
-      </div>`
-    return
-  }
-
-  container.innerHTML = project.trackingSignals.map(signal => {
-    const dim = (project.dimensionBlocks || []).find(d => d.id === signal.dimensionId)
-    return `
-      <div class="signal-card">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-            <span class="badge badge-signal-${signal.status}">${signal.status}</span>
-            ${dim ? `<span style="font-size:12px;color:${getDimensionColor(dim.dimension)};font-weight:600">
-              <i class="fas ${getDimensionIcon(dim.dimension)}"></i> ${dim.dimension}
-            </span>` : ''}
+  if (reviewContainer) {
+    if (!project.reviewNotes || project.reviewNotes.length === 0) {
+      reviewContainer.innerHTML = `
+        <div style="padding:24px;text-align:center;color:var(--color-text-tertiary);font-size:13px">
+          <i class="fas fa-archive" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px"></i>
+          暂无历史复盘记录
+        </div>`
+    } else {
+      reviewContainer.innerHTML = project.reviewNotes.map(note => `
+        <div class="review-card">
+          <div class="review-card-header">
+            <i class="fas fa-calendar-check" style="color:var(--color-blue)"></i>
+            <div>
+              <div style="font-size:14px;font-weight:600">${note.createdAt}</div>
+              <div style="font-size:12px;color:var(--color-text-tertiary)">${note.boundaryChange}</div>
+            </div>
+            ${note.isWrongDecision ? '<span class="wrong-decision-badge">错判记录</span>' : ''}
           </div>
-          <div style="font-size:14px;color:var(--color-text-primary);margin-bottom:6px">${signal.description}</div>
-          ${signal.note ? `<div style="font-size:12px;color:var(--color-text-secondary);background:var(--color-bg);padding:6px 10px;border-radius:6px">${signal.note}</div>` : ''}
-          ${signal.lastUpdate ? `<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">最近更新：${signal.lastUpdate}</div>` : ''}
-          <div class="signal-status-selector">
-            ${['已验证', '被削弱', '尚不清楚', '已否定'].map(s => `
-              <button class="signal-status-btn ${signal.status === s ? `selected-${s}` : ''}"
-                      data-signal="${signal.id}" data-status="${s}">${s}</button>
-            `).join('')}
+          <div class="review-card-body">
+            <div style="font-size:13px;color:var(--color-text-primary);margin-bottom:8px">${note.summary}</div>
+            ${note.wrongDecisionAnalysis ? `
+            <div style="background:var(--color-red-light);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--color-red)">
+              <strong>错判分析：</strong>${note.wrongDecisionAnalysis}
+            </div>` : ''}
           </div>
         </div>
-      </div>
-    `
-  }).join('')
-
-  container.querySelectorAll('.signal-status-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const signal = project.trackingSignals.find(s => s.id === btn.dataset.signal)
-      if (signal) {
-        signal.status = btn.dataset.status
-        signal.lastUpdate = new Date().toLocaleDateString('zh-CN')
-        AppState.save()
-        renderTabD(project)
-        showToast(`信号状态已更新为「${btn.dataset.status}」`, 'success')
-      }
-    })
-  })
-}
-
-// ─────────────────────────────────────────────────────
-// Tab E: 复盘归档
-// ─────────────────────────────────────────────────────
-function renderTabE(project) {
-  const container = document.getElementById('te-reviews')
-
-  if (!project.reviewNotes || project.reviewNotes.length === 0) {
-    container.innerHTML = `
-      <div style="padding:24px;text-align:center;color:var(--color-text-tertiary);font-size:13px">
-        <i class="fas fa-archive" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px"></i>
-        暂无历史复盘记录
-      </div>`
-  } else {
-    container.innerHTML = project.reviewNotes.map(note => `
-      <div class="review-card">
-        <div class="review-card-header">
-          <i class="fas fa-calendar-check" style="color:var(--color-blue)"></i>
-          <div>
-            <div style="font-size:14px;font-weight:600">${note.createdAt}</div>
-            <div style="font-size:12px;color:var(--color-text-tertiary)">${note.boundaryChange}</div>
-          </div>
-          ${note.isWrongDecision ? `<span class="wrong-decision-badge">错判记录</span>` : ''}
-        </div>
-        <div class="review-card-body">
-          <div style="font-size:13px;color:var(--color-text-primary);margin-bottom:8px">${note.summary}</div>
-          ${note.wrongDecisionAnalysis ? `
-          <div style="background:var(--color-red-light);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--color-red)">
-            <strong>错判分析：</strong>${note.wrongDecisionAnalysis}
-          </div>` : ''}
-        </div>
-      </div>
-    `).join('')
+      `).join('')
+    }
   }
 
-  // 新建复盘表单
-  const newReviewEl = document.getElementById('te-new-review')
   if (newReviewEl) {
     newReviewEl.innerHTML = `
       <div class="new-review-form">
@@ -1131,19 +1236,16 @@ function renderTabE(project) {
           <label>错判分析 <span style="font-size:12px;opacity:0.8">（必填，不提供 AI 初稿）</span></label>
           <div class="wrong-analysis-hint">
             请独立思考：哪个维度或红旗当时没有被正确处理？是什么导致了边界判断偏差？
-            不要只写结果，要写出推理过程。
           </div>
           <textarea id="wrong-analysis-text" rows="4"
-            placeholder="例如：当时把发起方主张误判为公开事实，导致商业化维度被标记为支撑，实际上该证据强度不够…"></textarea>
+            placeholder="例如：当时把发起方主张误判为公开事实，导致商业化维度被标记为支撑…"></textarea>
         </div>
 
         <div style="margin-top:20px;display:flex;gap:12px">
           <button class="btn btn-primary" onclick="submitReview()">
             <i class="fas fa-archive"></i> 提交复盘
           </button>
-          <span style="font-size:12px;color:var(--color-text-tertiary);align-self:center">
-            提交后不可修改
-          </span>
+          <span style="font-size:12px;color:var(--color-text-tertiary);align-self:center">提交后不可修改</span>
         </div>
       </div>
     `
@@ -1181,7 +1283,7 @@ window.submitReview = function() {
   if (project.status === '支持中') project.status = '已关闭'
   AppState.save()
   showToast('复盘已归档 ✓', 'success')
-  renderTabE(project)
+  renderTabD(project)
 }
 
 // =====================================================
