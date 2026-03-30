@@ -1485,11 +1485,110 @@ img { max-width: 100%; display: block; }
 .toast.warning i { color: var(--color-orange); }
 .toast.info i { color: var(--color-blue); }
 
+/* =====================================================
+   分析头部（精简版，无上下文条）
+   ===================================================== */
+.analysis-header-slim {
+  padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.analysis-header-slim .analysis-breadcrumb {
+  margin-bottom: 0;
+}
+.analysis-project-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* =====================================================
+   维度卡片（Tab B 核心组件）
+   ===================================================== */
+.dimension-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+  transition: all var(--transition-fast);
+}
+.dimension-card:hover { border-color: rgba(0,122,255,0.2); }
+.dimension-card.stance-支撑 { border-left: 3px solid var(--color-green); }
+.dimension-card.stance-存疑 { border-left: 3px solid var(--color-orange); }
+.dimension-card.stance-否定 { border-left: 3px solid var(--color-red); }
+.dimension-card.stance-待评估 { border-left: 3px solid var(--color-gray); }
+
+.dimension-header {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.dimension-header:hover { background: var(--color-bg); }
+
+.dimension-icon-wrap {
+  width: 36px; height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.dimension-body {
+  display: none;
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-5);
+}
+.dimension-body.expanded { display: block; }
+
+.dim-section {
+  margin-bottom: var(--space-4);
+}
+.dim-section:last-child { margin-bottom: 0; }
+
+.dim-section-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.paradox-signal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  padding: 5px var(--space-3);
+  background: var(--color-orange-light);
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+  line-height: 1.5;
+  border-left: 2px solid var(--color-orange);
+}
+
+.dim-stance-area {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
   .layer-columns { grid-template-columns: 1fr; }
   .boundary-selector { grid-template-columns: 1fr 1fr; }
   .admin-layout { grid-template-columns: 1fr; }
   .snapshot-frozen-body { grid-template-columns: 1fr; }
-  .context-bar-items { gap: var(--space-3); }
 }

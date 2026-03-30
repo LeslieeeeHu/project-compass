@@ -1,6 +1,8 @@
 /**
- * Project Compass - 前端应用主逻辑
- * 三界面 SPA：项目流 / 后台管理 / 项目分析判断
+ * Project Compass - 前端应用主逻辑 v3
+ * 三界面 SPA：项目流 / 后台管理 / 项目分析判断（5 Tab）
+ * Tab A: 信息搜集与分层  Tab B: 假设·证据·红旗
+ * Tab C: 决策快照  Tab D: 跟踪信号  Tab E: 复盘归档
  */
 
 // =====================================================
@@ -8,23 +10,19 @@
 // =====================================================
 
 const AppState = {
-  currentPage: 'projects',        // 'projects' | 'admin' | 'analysis'
-  currentProjectId: null,         // 当前打开的项目 ID
-  currentTab: 't1',               // 当前分析 Tab
-  adminSection: 'import',         // 'import' | 'context'
+  currentPage: 'projects',
+  currentProjectId: null,
+  currentTab: 'ta',
+  adminSection: 'import',
   filterStatus: '全部',
   filterNewInfo: false,
   filterCategory: '',
   searchKeyword: '',
-
-  // 项目运行时状态（在内存中维护，页面刷新不保留）
   projects: [],
 
   init() {
-    // 深拷贝 mock 数据
     this.projects = JSON.parse(JSON.stringify(window.MOCK_PROJECTS || []))
-    // 尝试从 localStorage 恢复用户操作
-    const saved = localStorage.getItem('compass_project_states')
+    const saved = localStorage.getItem('compass_project_states_v3')
     if (saved) {
       try {
         const states = JSON.parse(saved)
@@ -37,20 +35,20 @@ const AppState = {
   },
 
   save() {
-    // 只保存用户修改过的字段
     const states = this.projects.map(p => ({
       id: p.id,
       currentBoundary: p.currentBoundary,
       status: p.status,
-      logicReviewCompleted: p.logicReviewCompleted,
+      allDimensionsReviewed: p.allDimensionsReviewed,
       allFlagsTriaged: p.allFlagsTriaged,
-      assumptions: p.assumptions,
+      dimensionBlocks: p.dimensionBlocks,
       redFlags: p.redFlags,
       trackingSignals: p.trackingSignals,
       decisionSnapshot: p.decisionSnapshot,
-      reviewNotes: p.reviewNotes
+      reviewNotes: p.reviewNotes,
+      infoItems: p.infoItems
     }))
-    localStorage.setItem('compass_project_states', JSON.stringify(states))
+    localStorage.setItem('compass_project_states_v3', JSON.stringify(states))
   },
 
   getProject(id) {
@@ -70,31 +68,6 @@ const AppState = {
       }
       return true
     })
-  }
-}
-
-// =====================================================
-// 路由 / 导航
-// =====================================================
-
-function navigateTo(page, projectId = null) {
-  AppState.currentPage = page
-  AppState.currentProjectId = projectId
-
-  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'))
-  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'))
-
-  if (page === 'projects') {
-    document.getElementById('page-projects').classList.add('active')
-    document.getElementById('nav-projects').classList.add('active')
-    renderProjectsPage()
-  } else if (page === 'admin') {
-    document.getElementById('page-admin').classList.add('active')
-    document.getElementById('nav-admin').classList.add('active')
-    renderAdminPage()
-  } else if (page === 'analysis' && projectId) {
-    document.getElementById('page-analysis').classList.add('active')
-    renderAnalysisPage(projectId)
   }
 }
 
@@ -138,7 +111,7 @@ function getProjectColor(id) {
 
 function getEvidenceIcon(type) {
   const map = {
-    website: 'fa-globe', pricing: 'fa-tag', security: 'fa-shield',
+    website: 'fa-globe', pricing: 'fa-tag', security: 'fa-shield-alt',
     integration: 'fa-plug', case_study: 'fa-file-alt', help_doc: 'fa-book',
     user_review: 'fa-star', changelog: 'fa-history'
   }
@@ -158,10 +131,32 @@ function getReliabilityLabel(r) {
   return { high: '高可信', medium: '中等', low: '低可信' }[r] || r
 }
 
+function getDimensionIcon(dim) {
+  const map = {
+    '商业化层面': 'fa-chart-line',
+    '用户层面': 'fa-users',
+    '技术层面': 'fa-microchip',
+    '适配层面': 'fa-puzzle-piece',
+    '风险层面': 'fa-shield-alt'
+  }
+  return map[dim] || 'fa-circle'
+}
+
+function getDimensionColor(dim) {
+  const map = {
+    '商业化层面': '#007AFF',
+    '用户层面': '#34C759',
+    '技术层面': '#AF52DE',
+    '适配层面': '#FF9500',
+    '风险层面': '#FF3B30'
+  }
+  return map[dim] || '#8E8E93'
+}
+
 function showToast(msg, type = 'success') {
   const toast = document.getElementById('app-toast')
   const iconMap = { success: 'fa-check-circle', warning: 'fa-exclamation-circle', info: 'fa-info-circle' }
-  toast.innerHTML = `<i class="fas ${iconMap[type]}"></i> ${msg}`
+  toast.innerHTML = `<i class="fas ${iconMap[type] || 'fa-info-circle'}"></i> ${msg}`
   toast.className = `toast ${type} show`
   setTimeout(() => toast.classList.remove('show'), 2200)
 }
@@ -170,8 +165,33 @@ function countUnhandledFlags(project) {
   return project.redFlags.filter(f => f.level === null).length
 }
 
-function countPendingStances(project) {
-  return project.assumptions.filter(a => a.stance === '待评估').length
+function countPendingDimensions(project) {
+  return (project.dimensionBlocks || []).filter(d => d.stance === '待评估').length
+}
+
+// =====================================================
+// 路由 / 导航
+// =====================================================
+
+function navigateTo(page, projectId = null) {
+  AppState.currentPage = page
+  AppState.currentProjectId = projectId
+
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'))
+  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'))
+
+  if (page === 'projects') {
+    document.getElementById('page-projects').classList.add('active')
+    document.getElementById('nav-projects').classList.add('active')
+    renderProjectsPage()
+  } else if (page === 'admin') {
+    document.getElementById('page-admin').classList.add('active')
+    document.getElementById('nav-admin').classList.add('active')
+    renderAdminPage()
+  } else if (page === 'analysis' && projectId) {
+    document.getElementById('page-analysis').classList.add('active')
+    renderAnalysisPage(projectId)
+  }
 }
 
 // =====================================================
@@ -180,10 +200,8 @@ function countPendingStances(project) {
 
 function renderProjectsPage() {
   const projects = AppState.getFilteredProjects()
-
-  // 更新结果计数
   document.getElementById('result-count').textContent =
-    `共 ${projects.length} 个项目${AppState.filterStatus !== '全部' ? `（已筛选）` : ''}`
+    `共 ${projects.length} 个项目${AppState.filterStatus !== '全部' ? '（已筛选）' : ''}`
 
   const grid = document.getElementById('project-grid')
   if (projects.length === 0) {
@@ -197,7 +215,6 @@ function renderProjectsPage() {
 
   grid.innerHTML = projects.map(p => renderProjectCard(p)).join('')
 
-  // 绑定点击
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', () => navigateTo('analysis', card.dataset.id))
   })
@@ -211,7 +228,7 @@ function renderProjectsPage() {
 
 function renderProjectCard(p) {
   const pendingFlags = countUnhandledFlags(p)
-  const pendingStances = countPendingStances(p)
+  const pendingDims = countPendingDimensions(p)
   const color = getProjectColor(p.id)
   const icon = getProjectIcon(p.category)
 
@@ -246,10 +263,10 @@ function renderProjectCard(p) {
             <i class="fas fa-flag" style="color:var(--color-red)"></i>
             <span>${pendingFlags} 个红旗待处理</span>
           </div>` : ''}
-          ${pendingStances > 0 ? `
+          ${pendingDims > 0 ? `
           <div class="project-card-meta-item" style="color:var(--color-orange)">
             <i class="fas fa-question-circle" style="color:var(--color-orange)"></i>
-            <span>${pendingStances} 个假设待评估</span>
+            <span>${pendingDims} 个维度待评估</span>
           </div>` : ''}
         </div>
       </div>
@@ -268,7 +285,6 @@ function renderProjectCard(p) {
 }
 
 function initProjectsFilters() {
-  // 状态 Tab
   document.querySelectorAll('.filter-tab[data-status]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-tab[data-status]').forEach(b => b.classList.remove('active'))
@@ -278,7 +294,6 @@ function initProjectsFilters() {
     })
   })
 
-  // 新增信息 checkbox
   const newInfoChk = document.getElementById('filter-new-info')
   newInfoChk?.addEventListener('change', () => {
     AppState.filterNewInfo = newInfoChk.checked
@@ -287,7 +302,6 @@ function initProjectsFilters() {
     renderProjectsPage()
   })
 
-  // 搜索
   const searchInput = document.getElementById('search-input')
   let searchTimer
   searchInput?.addEventListener('input', () => {
@@ -298,7 +312,6 @@ function initProjectsFilters() {
     }, 200)
   })
 
-  // 类别筛选
   const categorySelect = document.getElementById('category-select')
   categorySelect?.addEventListener('change', () => {
     AppState.filterCategory = categorySelect.value
@@ -311,7 +324,6 @@ function initProjectsFilters() {
 // =====================================================
 
 function renderAdminPage() {
-  // 填充决策方现状
   const ctx = window.DEFAULT_CONTEXT
   if (ctx) {
     document.getElementById('ctx-role').value = ctx.role || ''
@@ -334,14 +346,12 @@ function initAdminNav() {
     })
   })
 
-  // 机会导入表单提交
   document.getElementById('import-form')?.addEventListener('submit', e => {
     e.preventDefault()
     showToast('机会导入成功！（MVP阶段使用预置数据）', 'success')
     e.target.reset()
   })
 
-  // 决策方现状保存
   document.getElementById('context-form')?.addEventListener('submit', e => {
     e.preventDefault()
     showToast('决策方现状已保存', 'success')
@@ -349,7 +359,7 @@ function initAdminNav() {
 }
 
 // =====================================================
-// 界面3：项目分析判断页
+// 界面3：项目分析判断页（5 Tab）
 // =====================================================
 
 function renderAnalysisPage(projectId) {
@@ -359,34 +369,36 @@ function renderAnalysisPage(projectId) {
   // 面包屑
   document.getElementById('analysis-project-name').textContent = project.name
 
-  // 上下文条
-  const ctx = window.DEFAULT_CONTEXT
-  document.getElementById('ctx-bar-role').textContent = ctx.role
-  document.getElementById('ctx-bar-goal').textContent = ctx.currentGoal.slice(0, 30) + (ctx.currentGoal.length > 30 ? '…' : '')
-  document.getElementById('ctx-bar-resources').textContent = ctx.resourceConstraints.slice(0, 25) + '…'
-  document.getElementById('ctx-bar-risk').textContent = ctx.topRisk.slice(0, 25) + '…'
+  // 项目 meta（投入边界 + 状态 badge）
+  const metaEl = document.getElementById('analysis-project-meta')
+  if (metaEl) {
+    metaEl.innerHTML = `
+      <span class="badge badge-${project.status}">${project.status}</span>
+      <span class="badge badge-boundary-${project.currentBoundary}" style="margin-left:6px">
+        <i class="fas ${getBoundaryIcon(project.currentBoundary)}"></i>
+        ${project.currentBoundary}
+      </span>
+    `
+  }
 
-  // 渲染 Tab 状态
+  // Tab 状态红点
   renderTabAlerts(project)
 
-  // 默认切到 T1
-  switchTab('t1', project)
+  // 切到第一个 Tab
+  switchTab('ta', project)
 }
 
 function renderTabAlerts(project) {
-  // T5 有未处理红旗
-  const t5Tab = document.querySelector('.tab-item[data-tab="t5"]')
+  // Tab B: 未处理红旗 或 未评估维度
+  const tbTab = document.querySelector('.tab-item[data-tab="tb"]')
   const unflagged = project.redFlags.filter(f => f.level === null).length
-  if (t5Tab) t5Tab.classList.toggle('has-alert', unflagged > 0)
+  const unassessed = (project.dimensionBlocks || []).filter(d => d.stance === '待评估').length
+  if (tbTab) tbTab.classList.toggle('has-alert', unflagged > 0 || unassessed > 0)
 
-  // T4 有未评估假设
-  const t4Tab = document.querySelector('.tab-item[data-tab="t4"]')
-  const unassessed = project.assumptions.filter(a => a.stance === '待评估').length
-  if (t4Tab) t4Tab.classList.toggle('has-alert', unassessed > 0)
-
-  // T1 有新信息
-  const t1Tab = document.querySelector('.tab-item[data-tab="t1"]')
-  if (t1Tab) t1Tab.classList.toggle('has-alert', project.hasNewInfo)
+  // Tab A: 有新信息 或 有未确认条目
+  const taTab = document.querySelector('.tab-item[data-tab="ta"]')
+  const unconfirmed = (project.infoItems || []).filter(i => !i.userConfirmed).length
+  if (taTab) taTab.classList.toggle('has-alert', project.hasNewInfo || unconfirmed > 0)
 }
 
 function switchTab(tabId, project) {
@@ -397,14 +409,11 @@ function switchTab(tabId, project) {
   document.getElementById(`panel-${tabId}`)?.classList.add('active')
 
   const renderers = {
-    t1: () => renderT1(project),
-    t2: () => renderT2(project),
-    t3: () => renderT3(project),
-    t4: () => renderT4(project),
-    t5: () => renderT5(project),
-    t6: () => renderT6(project),
-    t7: () => renderT7(project),
-    t8: () => renderT8(project)
+    ta: () => renderTabA(project),
+    tb: () => renderTabB(project),
+    tc: () => renderTabC(project),
+    td: () => renderTabD(project),
+    te: () => renderTabE(project),
   }
   renderers[tabId]?.()
 }
@@ -419,18 +428,19 @@ function initTabNav() {
 }
 
 // ─────────────────────────────────────────────────────
-// T1: 信息搜集
+// Tab A: 信息搜集与分层
 // ─────────────────────────────────────────────────────
-function renderT1(project) {
-  const container = document.getElementById('t1-items')
-  const pendingCount = project.infoItems.filter(i => !i.userConfirmed).length
-  const confirmedCount = project.infoItems.filter(i => i.userConfirmed).length
+function renderTabA(project) {
+  const items = project.infoItems || []
+  const pendingCount = items.filter(i => !i.userConfirmed).length
+  const confirmedCount = items.filter(i => i.userConfirmed).length
 
-  // 统计
-  document.getElementById('t1-pending-count').textContent = pendingCount
-  document.getElementById('t1-confirmed-count').textContent = confirmedCount
+  document.getElementById('ta-pending-count').textContent = pendingCount
+  document.getElementById('ta-confirmed-count').textContent = confirmedCount
 
-  container.innerHTML = project.infoItems.map(item => `
+  // 信息条目列表
+  const container = document.getElementById('ta-items')
+  container.innerHTML = items.map(item => `
     <div class="info-item-card ${item.userConfirmed ? 'confirmed' : 'pending-confirm'}" data-id="${item.id}">
       <div class="info-item-left">
         <div class="info-item-content">${item.content}</div>
@@ -459,13 +469,19 @@ function renderT1(project) {
   `).join('')
 
   // 一键采纳
-  document.getElementById('t1-confirm-all')?.addEventListener('click', () => {
-    project.infoItems.forEach(i => i.userConfirmed = true)
-    AppState.save()
-    showToast('已采纳全部信息', 'success')
-    renderT1(project)
-    renderTabAlerts(project)
-  })
+  const confirmAllBtn = document.getElementById('ta-confirm-all')
+  if (confirmAllBtn) {
+    // 先移除旧监听，防止重复绑定
+    const newBtn = confirmAllBtn.cloneNode(true)
+    confirmAllBtn.parentNode.replaceChild(newBtn, confirmAllBtn)
+    newBtn.addEventListener('click', () => {
+      project.infoItems.forEach(i => i.userConfirmed = true)
+      AppState.save()
+      showToast('已采纳全部信息', 'success')
+      renderTabA(project)
+      renderTabAlerts(project)
+    })
+  }
 
   // 单条确认
   container.querySelectorAll('.confirm-item-btn').forEach(btn => {
@@ -474,39 +490,28 @@ function renderT1(project) {
       if (item) {
         item.userConfirmed = true
         AppState.save()
-        renderT1(project)
+        renderTabA(project)
+        renderTabAlerts(project)
       }
     })
   })
 
-  // 存疑标记
+  // 存疑
   container.querySelectorAll('.doubt-item-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      showToast('已标记为存疑（功能完善中）', 'warning')
-    })
+    btn.addEventListener('click', () => showToast('已标记为存疑（功能完善中）', 'warning'))
   })
-}
 
-// ─────────────────────────────────────────────────────
-// T2: 事实 / 自述 / 未知分层
-// ─────────────────────────────────────────────────────
-function renderT2(project) {
+  // ─── 分层视图 ───
   const layers = ['公开事实', '发起方主张', '当前未知']
-  const layerDesc = {
-    '公开事实': '可从公开渠道独立核验的信息',
-    '发起方主张': '来自官网/营销材料，代表发起方立场',
-    '当前未知': '目前无法从公开渠道获取或确认的信息'
-  }
-
   layers.forEach(layer => {
-    const items = project.infoItems.filter(i => i.layer === layer)
+    const layerItems = items.filter(i => i.layer === layer)
     const col = document.getElementById(`layer-col-${layer}`)
     const countEl = document.getElementById(`layer-count-${layer}`)
-    if (countEl) countEl.textContent = items.length
+    if (countEl) countEl.textContent = layerItems.length
     if (col) {
-      col.innerHTML = items.length === 0
+      col.innerHTML = layerItems.length === 0
         ? `<div style="padding:16px;text-align:center;color:var(--color-text-tertiary);font-size:13px">暂无信息</div>`
-        : items.map(item => `
+        : layerItems.map(item => `
           <div class="layer-item">
             <div>${item.content}</div>
             <div class="layer-item-source">${item.source || ''}</div>
@@ -515,219 +520,221 @@ function renderT2(project) {
     }
   })
 
-  // 一键采纳分层
-  document.getElementById('t2-confirm-all')?.addEventListener('click', () => {
-    showToast('已采纳 AI 分层结果', 'success')
-  })
-
   // 未知项警告
-  const unknownItems = project.infoItems.filter(i => i.layer === '当前未知')
-  const warningEl = document.getElementById('t2-unknown-warning')
+  const unknownItems = items.filter(i => i.layer === '当前未知')
+  const warningEl = document.getElementById('ta-unknown-warning')
   if (warningEl) {
     warningEl.style.display = unknownItems.length === 0 ? 'flex' : 'none'
     if (unknownItems.length === 0) {
       warningEl.innerHTML = `
         <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
-        <p>⚠️ 系统未检测到"当前未知"项。这可能意味着信息过于乐观——请确认是否有重要信息无法从公开渠道获取。</p>
+        <p>⚠️ 系统未检测到「当前未知」项。这可能意味着信息过于乐观——请确认是否有重要信息无法从公开渠道获取。</p>
       `
     }
   }
 
-  // 公开证据快照
-  const evidenceList = document.getElementById('t2-evidence-list')
+  // ─── 公开证据快照 ───
+  const evidenceList = document.getElementById('ta-evidence-list')
   if (evidenceList) {
-    evidenceList.innerHTML = project.evidence.map(ev => `
-      <div class="evidence-card">
-        <div class="evidence-type-icon evidence-type-${ev.type}">
-          <i class="fas ${getEvidenceIcon(ev.type)}"></i>
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:13px;font-weight:600">${ev.title}</span>
-            <span style="font-size:11px;color:var(--color-text-tertiary)">${getEvidenceLabel(ev.type)}</span>
-            <span class="badge badge-reliability-${ev.reliability}">${getReliabilityLabel(ev.reliability)}</span>
+    const evidence = project.evidence || []
+    evidenceList.innerHTML = evidence.length === 0
+      ? `<div style="color:var(--color-text-tertiary);font-size:13px;padding:12px 0">暂无公开证据</div>`
+      : evidence.map(ev => `
+        <div class="evidence-card">
+          <div class="evidence-type-icon evidence-type-${ev.type}">
+            <i class="fas ${getEvidenceIcon(ev.type)}"></i>
           </div>
-          <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.5">${ev.summary}</div>
-          ${ev.url ? `<a href="${ev.url}" target="_blank" style="font-size:11px;margin-top:4px;display:inline-block">
-            <i class="fas fa-external-link-alt"></i> 查看来源
-          </a>` : ''}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:600">${ev.title}</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary)">${getEvidenceLabel(ev.type)}</span>
+              <span class="badge badge-reliability-${ev.reliability}">${getReliabilityLabel(ev.reliability)}</span>
+            </div>
+            <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.5">${ev.summary}</div>
+            ${ev.url ? `<a href="${ev.url}" target="_blank" style="font-size:11px;margin-top:4px;display:inline-block">
+              <i class="fas fa-external-link-alt"></i> 查看来源
+            </a>` : ''}
+          </div>
         </div>
-      </div>
-    `).join('')
+      `).join('')
   }
 }
 
 // ─────────────────────────────────────────────────────
-// T3: 建立关键假设
+// Tab B: 假设·证据·红旗（使用 dimensionBlocks）
 // ─────────────────────────────────────────────────────
-function renderT3(project) {
-  const container = document.getElementById('t3-assumptions')
-  const stanceLabels = { '支撑': '✓ 支撑', '存疑': '? 存疑', '否定': '✗ 否定' }
+function renderTabB(project) {
+  const dims = project.dimensionBlocks || []
+  const flags = project.redFlags || []
 
-  container.innerHTML = project.assumptions.map(ass => {
-    const supportEvidence = project.evidence.filter(e => ass.supportingEvidence.includes(e.id))
-    const weakenEvidence = project.evidence.filter(e => ass.weakeningEvidence.includes(e.id))
-    const flags = project.redFlags.filter(f => ass.redFlags.includes(f.id))
+  const unassessed = dims.filter(d => d.stance === '待评估').length
+  const unhandled = flags.filter(f => f.level === null).length
+
+  // 进度提示
+  const gateEl = document.getElementById('tb-progress-gate')
+  if (gateEl) {
+    const total = unassessed + unhandled
+    if (total > 0) {
+      const parts = []
+      if (unassessed > 0) parts.push(`<strong>${unassessed} 个维度</strong>尚未给出态度`)
+      if (unhandled > 0) parts.push(`<strong>${unhandled} 条红旗</strong>未完成定级`)
+      gateEl.className = 'progress-gate'
+      gateEl.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>${parts.join('，')}——完成后方可生成决策快照。</p>
+      `
+    } else {
+      gateEl.className = 'gate-complete'
+      gateEl.innerHTML = `<i class="fas fa-check-circle"></i><p>所有维度已评估，所有红旗已定级！可以进入决策快照。</p>`
+    }
+  }
+
+  // ─── 渲染维度块 ───
+  const dimContainer = document.getElementById('tb-dimensions')
+  if (!dimContainer) return
+
+  dimContainer.innerHTML = dims.map(dim => {
+    const supportEvs = (project.evidence || []).filter(e => dim.supportingEvidence.includes(e.id))
+    const weakenEvs = (project.evidence || []).filter(e => dim.weakeningEvidence.includes(e.id))
+    const relFlags = flags.filter(f => dim.relatedFlags.includes(f.id))
+    const dimColor = getDimensionColor(dim.dimension)
+    const dimIcon = getDimensionIcon(dim.dimension)
 
     return `
-    <div class="assumption-card stance-${ass.stance}" data-id="${ass.id}">
-      <div class="assumption-header" onclick="toggleAssumption('${ass.id}')">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-            <span class="badge badge-type-${ass.type}">${ass.type}</span>
-            <span class="badge badge-stance-${ass.stance}">${ass.stance}</span>
-            ${ass.aiGenerated ? '<span style="font-size:11px;color:var(--color-text-tertiary)"><i class="fas fa-robot"></i> AI生成</span>' : ''}
-          </div>
-          <div style="font-size:14px;color:var(--color-text-primary);line-height:1.6">${ass.content}</div>
+    <div class="dimension-card stance-${dim.stance}" data-id="${dim.id}">
+      <div class="dimension-header" onclick="toggleDimension('${dim.id}')">
+        <div class="dimension-icon-wrap" style="background:${dimColor}20;color:${dimColor}">
+          <i class="fas ${dimIcon}"></i>
         </div>
-        <i class="fas fa-chevron-down" style="color:var(--color-text-tertiary);font-size:12px;transition:transform 0.2s;flex-shrink:0" id="chevron-${ass.id}"></i>
-      </div>
-      <div class="assumption-body" id="assumption-body-${ass.id}">
-        <div style="padding-top:12px">
-          <div class="assumption-evidence-section">
-            <div class="assumption-evidence-title"><i class="fas fa-check-circle" style="color:var(--color-green)"></i> 支持证据</div>
-            ${supportEvidence.length === 0
-              ? '<div class="assumption-evidence-item" style="color:var(--color-text-tertiary)"><i class="fas fa-minus"></i> 暂无支持证据</div>'
-              : supportEvidence.map(e => `<div class="assumption-evidence-item"><i class="fas ${getEvidenceIcon(e.type)}" style="color:var(--color-blue)"></i>${e.title}：${e.summary}</div>`).join('')
-            }
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:${dimColor}">${dim.dimension}</span>
+            <span class="badge badge-stance-${dim.stance}">${dim.stance}</span>
+            ${dim.aiGenerated ? '<span style="font-size:11px;color:var(--color-text-tertiary)"><i class="fas fa-robot"></i> AI生成</span>' : ''}
           </div>
-          ${weakenEvidence.length > 0 ? `
-          <div class="assumption-evidence-section">
-            <div class="assumption-evidence-title"><i class="fas fa-exclamation-circle" style="color:var(--color-orange)"></i> 削弱证据</div>
-            ${weakenEvidence.map(e => `<div class="assumption-evidence-item"><i class="fas ${getEvidenceIcon(e.type)}" style="color:var(--color-orange)"></i>${e.title}：${e.summary}</div>`).join('')}
-          </div>` : ''}
-          ${flags.length > 0 ? `
-          <div class="assumption-evidence-section">
-            <div class="assumption-evidence-title"><i class="fas fa-flag" style="color:var(--color-red)"></i> 相关红旗</div>
-            ${flags.map(f => `<div class="assumption-evidence-item" style="color:var(--color-red)"><i class="fas fa-flag"></i>${f.content}</div>`).join('')}
+          <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.5">
+            <strong style="color:var(--color-text-primary)">乐观前提：</strong>${dim.optimisticPremise}
+          </div>
+        </div>
+        <i class="fas fa-chevron-down dim-chevron" id="dim-chevron-${dim.id}" style="color:var(--color-text-tertiary);font-size:12px;transition:transform 0.2s;flex-shrink:0"></i>
+      </div>
+
+      <div class="dimension-body" id="dim-body-${dim.id}">
+        <!-- 证据摘要 -->
+        <div class="dim-section">
+          <div class="dim-section-title"><i class="fas fa-search" style="color:var(--color-blue)"></i> 当前证据摘要</div>
+          <p style="font-size:13px;color:var(--color-text-secondary);line-height:1.6;margin:0">${dim.evidenceSummary}</p>
+        </div>
+
+        <!-- 悖论信号 -->
+        ${dim.paradoxSignals && dim.paradoxSignals.length > 0 ? `
+        <div class="dim-section">
+          <div class="dim-section-title"><i class="fas fa-exclamation-circle" style="color:var(--color-orange)"></i> 悖论信号 <span style="font-size:12px;font-weight:400;color:var(--color-text-tertiary)">与乐观前提矛盾的已知信息</span></div>
+          ${dim.paradoxSignals.map(s => `
+            <div class="paradox-signal-item">
+              <i class="fas fa-minus-circle" style="color:var(--color-orange);flex-shrink:0;margin-top:1px"></i>
+              <span>${s}</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <!-- 支撑证据 -->
+        ${supportEvs.length > 0 ? `
+        <div class="dim-section">
+          <div class="dim-section-title"><i class="fas fa-check-circle" style="color:var(--color-green)"></i> 支撑证据</div>
+          ${supportEvs.map(e => `
+            <div class="assumption-evidence-item">
+              <i class="fas ${getEvidenceIcon(e.type)}" style="color:var(--color-blue)"></i>
+              ${e.title}：${e.summary}
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <!-- 削弱证据 -->
+        ${weakenEvs.length > 0 ? `
+        <div class="dim-section">
+          <div class="dim-section-title"><i class="fas fa-times-circle" style="color:var(--color-red)"></i> 削弱证据</div>
+          ${weakenEvs.map(e => `
+            <div class="assumption-evidence-item" style="color:var(--color-orange)">
+              <i class="fas ${getEvidenceIcon(e.type)}" style="color:var(--color-orange)"></i>
+              ${e.title}：${e.summary}
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <!-- 关联红旗 -->
+        ${relFlags.length > 0 ? `
+        <div class="dim-section">
+          <div class="dim-section-title"><i class="fas fa-flag" style="color:var(--color-red)"></i> 关联红旗</div>
+          ${relFlags.map(f => `
+            <div class="assumption-evidence-item" style="color:var(--color-red)">
+              <i class="fas fa-flag" style="color:var(--color-red)"></i>
+              ${f.content}
+              ${f.level ? `<span class="badge badge-flag-${f.level}" style="margin-left:6px">${f.level}</span>` : '<span style="font-size:11px;color:var(--color-orange);margin-left:6px">待定级</span>'}
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <!-- 用户态度选择 -->
+        <div class="dim-stance-area">
+          <div class="dim-section-title" style="margin-bottom:8px">
+            <i class="fas fa-brain" style="color:var(--color-blue)"></i>
+            你的判断：这个维度的前提是否成立？
+          </div>
+          ${dim.stance === '待评估'
+            ? `<div style="font-size:13px;color:var(--color-orange);margin-bottom:8px">⚠️ 请根据以上证据和悖论信号给出你的判断。</div>`
+            : `<div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px">当前态度：<strong>${dim.stance}</strong>。如需修改，请重新选择。</div>`
+          }
+          <div class="stance-selector">
+            ${['支撑', '存疑', '否定'].map(s => `
+              <button class="stance-btn ${dim.stance === s ? `selected-${s}` : ''}"
+                      data-dim="${dim.id}" data-stance="${s}">${s}</button>
+            `).join('')}
+          </div>
+          ${dim.stance !== '待评估' ? `
+          <div class="gate-complete" style="margin-top:8px;padding:8px 12px">
+            <i class="fas fa-check-circle"></i>
+            <p>已完成评估 — 态度：${dim.stance}</p>
           </div>` : ''}
         </div>
       </div>
     </div>`
   }).join('')
-}
 
-window.toggleAssumption = function(id) {
-  const body = document.getElementById(`assumption-body-${id}`)
-  const chevron = document.getElementById(`chevron-${id}`)
-  if (body) {
-    const expanded = body.classList.toggle('expanded')
-    if (chevron) chevron.style.transform = expanded ? 'rotate(180deg)' : ''
-  }
-}
-
-// ─────────────────────────────────────────────────────
-// T4: 逻辑串联（深度参与）
-// ─────────────────────────────────────────────────────
-function renderT4(project) {
-  const container = document.getElementById('t4-logic')
-  const unassessed = project.assumptions.filter(a => a.stance === '待评估').length
-
-  container.innerHTML = project.assumptions.map(ass => `
-    <div class="assumption-card stance-${ass.stance}" id="t4-ass-${ass.id}">
-      <div style="padding:16px 20px">
-        <div style="display:flex;align-items:flex-start;gap:12px">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-              <span class="badge badge-type-${ass.type}">${ass.type}</span>
-              <span class="badge badge-stance-${ass.stance}">${ass.stance}</span>
-            </div>
-            <div style="font-size:14px;color:var(--color-text-primary);line-height:1.6;margin-bottom:12px">${ass.content}</div>
-          </div>
-        </div>
-
-        <div style="background:var(--color-bg);border-radius:8px;padding:12px;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:600;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
-            <i class="fas fa-brain" style="color:var(--color-blue)"></i> 你的判断：这个假设的证据是否充分？
-          </div>
-          <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px;line-height:1.5">
-            ${ass.stance === '待评估'
-              ? '⚠️ 你还没有对这个假设给出态度。这是 T4 的核心操作——请根据你目前看到的证据做出判断。'
-              : `当前态度：<strong>${ass.stance}</strong>。如需修改，请重新选择。`
-            }
-          </div>
-          <div class="stance-selector">
-            ${['支撑', '存疑', '否定'].map(s => `
-              <button class="stance-btn ${ass.stance === s ? `selected-${s}` : ''}"
-                      data-ass="${ass.id}" data-stance="${s}">${s}</button>
-            `).join('')}
-          </div>
-        </div>
-
-        ${ass.stance !== '待评估' ? `
-        <div class="gate-complete" style="margin-top:0">
-          <i class="fas fa-check-circle"></i>
-          <p>已完成评估 — 态度：${ass.stance}</p>
-        </div>` : ''}
-      </div>
-    </div>
-  `).join('')
-
-  // 进度提示
-  const gateEl = document.getElementById('t4-progress-gate')
-  if (gateEl) {
-    if (unassessed > 0) {
-      gateEl.className = 'progress-gate'
-      gateEl.innerHTML = `
-        <i class="fas fa-exclamation-triangle"></i>
-        <p>还有 <strong>${unassessed} 个假设</strong>尚未给出态度。T4 是判断核心环节——请对每个假设做出判断后再继续。</p>
-      `
-    } else {
-      gateEl.className = 'gate-complete'
-      gateEl.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <p>所有假设已完成评估！你可以继续进入 T5 红旗与反证。</p>
-      `
-    }
-  }
-
-  // 态度选择
-  container.querySelectorAll('.stance-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ass = project.assumptions.find(a => a.id === btn.dataset.ass)
-      if (ass) {
-        ass.stance = btn.dataset.stance
+  // 维度展开/折叠事件
+  dimContainer.querySelectorAll('.stance-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const dim = project.dimensionBlocks.find(d => d.id === btn.dataset.dim)
+      if (dim) {
+        dim.stance = btn.dataset.stance
+        project.allDimensionsReviewed = project.dimensionBlocks.every(d => d.stance !== '待评估')
         AppState.save()
-        renderT4(project)
+        renderTabB(project)
         renderTabAlerts(project)
-        showToast(`假设已标记为「${btn.dataset.stance}」`, 'success')
+        showToast(`「${dim.dimension}」已标记为「${btn.dataset.stance}」`, 'success')
       }
     })
   })
-}
 
-// ─────────────────────────────────────────────────────
-// T5: 红旗与反证（深度参与）
-// ─────────────────────────────────────────────────────
-function renderT5(project) {
-  const container = document.getElementById('t5-flags')
-  const unhandled = project.redFlags.filter(f => f.level === null).length
+  // ─── 渲染红旗汇总 ───
+  const flagContainer = document.getElementById('tb-flags')
+  if (!flagContainer) return
 
-  // 进度提示
-  const gateEl = document.getElementById('t5-progress-gate')
-  if (gateEl) {
-    if (unhandled > 0) {
-      gateEl.className = 'progress-gate'
-      gateEl.innerHTML = `
-        <i class="fas fa-exclamation-triangle"></i>
-        <p>还有 <strong>${unhandled} 个红旗</strong>未完成定级。每条红旗都需要你给出处理结果，才能推进到决策快照。</p>
-      `
-    } else {
-      gateEl.className = 'gate-complete'
-      gateEl.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <p>所有红旗已完成定级！可以进入 T6 生成决策快照。</p>
-      `
-    }
+  if (flags.length === 0) {
+    flagContainer.innerHTML = `<div style="color:var(--color-text-tertiary);font-size:13px;padding:12px 0">暂无识别出的红旗</div>`
+    return
   }
 
-  container.innerHTML = project.redFlags.map(flag => `
+  flagContainer.innerHTML = flags.map(flag => `
     <div class="redflag-card level-${flag.level}" id="flag-${flag.id}">
       <div class="redflag-icon"><i class="fas fa-flag"></i></div>
       <div class="redflag-body">
         <div class="redflag-content">${flag.content}</div>
-        <div class="redflag-category">类别：${flag.category} &nbsp;·&nbsp; ${flag.aiGenerated ? 'AI 识别' : '手动添加'}</div>
-
+        <div class="redflag-category">
+          类别：${flag.category} &nbsp;·&nbsp; 关联维度：${(project.dimensionBlocks.find(d => d.id === flag.dimensionId) || {}).dimension || '—'} &nbsp;·&nbsp;
+          ${flag.aiGenerated ? 'AI 识别' : '手动添加'}
+        </div>
         <div style="font-size:12px;font-weight:600;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
           你的处理结果
         </div>
@@ -739,14 +746,12 @@ function renderT5(project) {
             </button>
           `).join('')}
         </div>
-
         ${flag.level === '已解释' ? `
         <div class="flag-user-note">
           <input type="text" placeholder="请简要说明如何解释这条红旗…"
             value="${flag.userNote || ''}"
             data-flag="${flag.id}" class="flag-note-input" />
         </div>` : ''}
-
         ${flag.level === null ? `
         <div style="font-size:12px;color:var(--color-orange);margin-top:8px">
           <i class="fas fa-exclamation-circle"></i> 待处理 — 请选择处理结果
@@ -755,15 +760,15 @@ function renderT5(project) {
     </div>
   `).join('')
 
-  // 级别选择
-  container.querySelectorAll('.flag-level-btn').forEach(btn => {
+  // 红旗级别选择
+  flagContainer.querySelectorAll('.flag-level-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const flag = project.redFlags.find(f => f.id === btn.dataset.flag)
       if (flag) {
         flag.level = btn.dataset.level
-        AppState.save()
         project.allFlagsTriaged = project.redFlags.every(f => f.level !== null)
-        renderT5(project)
+        AppState.save()
+        renderTabB(project)
         renderTabAlerts(project)
         showToast(`红旗已标记为「${btn.dataset.level}」`, 'success')
       }
@@ -771,7 +776,7 @@ function renderT5(project) {
   })
 
   // 解释说明
-  container.querySelectorAll('.flag-note-input').forEach(input => {
+  flagContainer.querySelectorAll('.flag-note-input').forEach(input => {
     input.addEventListener('blur', () => {
       const flag = project.redFlags.find(f => f.id === input.dataset.flag)
       if (flag) { flag.userNote = input.value; AppState.save() }
@@ -779,20 +784,30 @@ function renderT5(project) {
   })
 }
 
-// ─────────────────────────────────────────────────────
-// T6: 决策快照
-// ─────────────────────────────────────────────────────
-function renderT6(project) {
-  const allFlagsTriaged = project.redFlags.every(f => f.level !== null)
-  const allStancesDone = project.assumptions.every(a => a.stance !== '待评估')
-  const canProceed = allFlagsTriaged && allStancesDone
+window.toggleDimension = function(id) {
+  const body = document.getElementById(`dim-body-${id}`)
+  const chevron = document.getElementById(`dim-chevron-${id}`)
+  if (body) {
+    const expanded = body.classList.toggle('expanded')
+    if (chevron) chevron.style.transform = expanded ? 'rotate(180deg)' : ''
+  }
+}
 
-  const gateEl = document.getElementById('t6-gate')
+// ─────────────────────────────────────────────────────
+// Tab C: 决策快照
+// ─────────────────────────────────────────────────────
+function renderTabC(project) {
+  const dims = project.dimensionBlocks || []
+  const allDimsDone = dims.every(d => d.stance !== '待评估')
+  const allFlagsTriaged = project.redFlags.every(f => f.level !== null)
+  const canProceed = allDimsDone && allFlagsTriaged
+
+  const gateEl = document.getElementById('tc-gate')
   if (gateEl) {
     if (!canProceed) {
       const missing = []
-      if (!allStancesDone) missing.push('T4：尚有假设未评估')
-      if (!allFlagsTriaged) missing.push('T5：尚有红旗未定级')
+      if (!allDimsDone) missing.push('Tab 2：尚有维度未完成评估')
+      if (!allFlagsTriaged) missing.push('Tab 2：尚有红旗未定级')
       gateEl.className = 'progress-gate'
       gateEl.innerHTML = `
         <i class="fas fa-lock"></i>
@@ -809,58 +824,57 @@ function renderT6(project) {
 
   if (project.decisionSnapshot?.frozenAt) {
     renderFrozenSnapshot(project)
-    const editor = document.getElementById('t6-editor')
+    const editor = document.getElementById('tc-editor')
     if (editor) editor.style.display = 'none'
     return
   }
 
-  // 未冻结时显示 editor
-  const editor = document.getElementById('t6-editor')
+  const editor = document.getElementById('tc-editor')
   if (editor) editor.style.display = 'block'
-  const snapDisplay = document.getElementById('t6-snapshot-display')
+  const snapDisplay = document.getElementById('tc-snapshot-display')
   if (snapDisplay) snapDisplay.innerHTML = ''
 
   // AI 推荐边界
   const fatalFlags = project.redFlags.filter(f => f.level === '致命').length
-  const deniedAssumptions = project.assumptions.filter(a => a.stance === '否定').length
+  const deniedDims = dims.filter(d => d.stance === '否定').length
   let suggestedBoundary = '继续观察'
   let suggestionReason = ''
-  if (fatalFlags > 0 || deniedAssumptions > 0) {
+  if (fatalFlags > 0 || deniedDims > 0) {
     suggestedBoundary = '暂不继续'
-    suggestionReason = `存在 ${fatalFlags} 个致命红旗、${deniedAssumptions} 个关键假设被否定`
-  } else if (project.assumptions.filter(a => a.stance === '存疑').length >= 3) {
+    suggestionReason = `存在 ${fatalFlags} 个致命红旗、${deniedDims} 个维度被否定`
+  } else if (dims.filter(d => d.stance === '存疑').length >= 3) {
     suggestedBoundary = '继续观察'
-    suggestionReason = '多个假设仍处于存疑状态，信息不足以推进'
-  } else if (project.assumptions.filter(a => a.stance === '支撑').length >= 3) {
+    suggestionReason = '多个维度仍处于存疑状态，信息不足以推进'
+  } else if (dims.filter(d => d.stance === '支撑').length >= 3) {
     suggestedBoundary = '可以接触'
-    suggestionReason = '关键假设有较强支撑，可以进行初步接触验证'
+    suggestionReason = '多个关键维度有较强支撑，可进行初步接触验证'
   }
 
-  const aiNotice = document.getElementById('t6-ai-suggestion')
+  const aiNotice = document.getElementById('tc-ai-suggestion')
   if (aiNotice) {
     aiNotice.innerHTML = `
       <i class="fas fa-robot"></i>
       <div>
         <strong>AI 建议边界：${suggestedBoundary}</strong>
         <span style="color:var(--color-text-tertiary)">（${suggestionReason || '基于当前证据的保守推断'}）</span>
-        <br><span style="font-size:12px">这只是参考——<strong>最终投入边界由你来决定</strong>，请根据你的实际情况选择。</span>
+        <br><span style="font-size:12px">这只是参考——<strong>最终投入边界由你来决定</strong>。</span>
       </div>
     `
   }
 
   // 边界选择器
   const boundaries = [
-    { key: '暂不继续', icon: '🚫', desc: '当前证据不足以支持任何形式投入，需要等待更多公开信号' },
-    { key: '继续观察', icon: '👀', desc: '可以持续关注公开信息更新，但暂不主动接触或投入资源' },
-    { key: '可以接触', icon: '🤝', desc: '可以进行初步接触（如预约 demo），但不承诺任何资源投入' },
+    { key: '暂不继续', icon: '🚫', desc: '当前证据不足以支持任何形式投入，等待更多公开信号' },
+    { key: '继续观察', icon: '👀', desc: '可持续关注公开信息更新，但暂不主动接触或投入资源' },
+    { key: '可以接触', icon: '🤝', desc: '可进行初步接触（如预约 demo），不承诺资源投入' },
     { key: '可以投入有限试点', icon: '🚀', desc: '在明确的资源上限内，可投入试点预算和有限实施时间' }
   ]
 
-  const selectorEl = document.getElementById('t6-boundary-selector')
+  const selectorEl = document.getElementById('tc-boundary-selector')
   if (selectorEl) {
     selectorEl.innerHTML = boundaries.map(b => `
       <div class="boundary-option ${project.currentBoundary === b.key ? `selected-${b.key}` : ''}"
-           data-boundary="${b.key}" onclick="selectBoundary('${b.key}')">
+           data-boundary="${b.key}" onclick="selectBoundaryC('${b.key}')">
         <div class="boundary-option-icon">${b.icon}</div>
         <div class="boundary-option-label">${b.key}</div>
         <div class="boundary-option-desc">${b.desc}</div>
@@ -868,64 +882,71 @@ function renderT6(project) {
     `).join('')
   }
 
-  // 关键假设摘要
-  const assumptionSummary = document.getElementById('t6-assumptions-summary')
-  if (assumptionSummary) {
-    assumptionSummary.innerHTML = project.assumptions.map(a => `
+  // 维度状态摘要
+  const dimSummary = document.getElementById('tc-dimensions-summary')
+  if (dimSummary) {
+    dimSummary.innerHTML = dims.map(d => `
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:13px">
-        <span class="badge badge-stance-${a.stance}" style="flex-shrink:0">${a.stance}</span>
-        <span style="color:var(--color-text-secondary)">${a.content}</span>
+        <span class="badge badge-stance-${d.stance}" style="flex-shrink:0">${d.stance}</span>
+        <span style="font-weight:600;color:${getDimensionColor(d.dimension)};flex-shrink:0">${d.dimension}</span>
+        <span style="color:var(--color-text-secondary)">${d.optimisticPremise}</span>
       </div>
     `).join('')
   }
+
+  // 绑定生成按钮
+  const genBtn = document.getElementById('tc-generate-snapshot')
+  if (genBtn) {
+    const newBtn = genBtn.cloneNode(true)
+    genBtn.parentNode.replaceChild(newBtn, genBtn)
+    newBtn.addEventListener('click', generateSnapshot)
+  }
 }
 
-window.selectBoundary = function(boundary) {
+window.selectBoundaryC = function(boundary) {
   const project = AppState.getProject(AppState.currentProjectId)
   if (project) {
     project.currentBoundary = boundary
     AppState.save()
-    renderT6(project)
+    renderTabC(project)
     showToast(`投入边界已设为「${boundary}」`, 'success')
   }
 }
-
-document.getElementById('t6-generate-snapshot')?.addEventListener('click', generateSnapshot)
 
 function generateSnapshot() {
   const project = AppState.getProject(AppState.currentProjectId)
   if (!project) return
   if (!project.redFlags.every(f => f.level !== null)) {
-    showToast('请先完成 T5 红旗定级', 'warning'); return
+    showToast('请先完成 Tab 2 红旗定级', 'warning'); return
   }
 
   const snapshot = {
     id: `snapshot-${Date.now()}`,
     createdAt: new Date().toLocaleDateString('zh-CN'),
     boundary: project.currentBoundary,
-    keyAssumptions: project.assumptions.map(a => a.id),
+    keyDimensions: (project.dimensionBlocks || []).map(d => d.id),
     modificationTriggers: {
-      upgrade: document.getElementById('t6-trigger-upgrade')?.value || '若关键假设得到独立验证，可升级至上一层边界',
-      pause: document.getElementById('t6-trigger-pause')?.value || '若出现致命红旗或关键假设被否定，立即暂停',
-      exit: document.getElementById('t6-trigger-exit')?.value || '项目方停止更新超过 3 个月，或安全合规问题无法解决'
+      upgrade: document.getElementById('tc-trigger-upgrade')?.value || '若关键维度得到独立验证，可升级至上一层边界',
+      pause: document.getElementById('tc-trigger-pause')?.value || '若出现致命红旗或关键维度被否定，立即暂停',
+      exit: document.getElementById('tc-trigger-exit')?.value || '项目方停止更新超过 3 个月'
     },
-    reviewDate: document.getElementById('t6-review-date')?.value || '2026-05-01',
+    reviewDate: document.getElementById('tc-review-date')?.value || '2026-05-01',
     frozenAt: new Date().toLocaleDateString('zh-CN')
   }
 
   project.decisionSnapshot = snapshot
-  project.status = project.status === '未支持' ? '支持中' : project.status
+  if (project.status === '未支持') project.status = '支持中'
   AppState.save()
   showToast('决策快照已生成并冻结 🎉', 'success')
-  renderT6(project)
+  renderTabC(project)
 }
 
 function renderFrozenSnapshot(project) {
   const snap = project.decisionSnapshot
-  const container = document.getElementById('t6-snapshot-display')
+  const container = document.getElementById('tc-snapshot-display')
   if (!container) return
 
-  const keyAssumptions = project.assumptions.filter(a => snap.keyAssumptions.includes(a.id))
+  const keyDims = (project.dimensionBlocks || []).filter(d => snap.keyDimensions.includes(d.id))
 
   container.innerHTML = `
     <div class="snapshot-frozen">
@@ -945,11 +966,11 @@ function renderFrozenSnapshot(project) {
       </div>
       <div class="snapshot-frozen-body">
         <div>
-          <div class="snapshot-section-title">关键假设</div>
-          ${keyAssumptions.map(a => `
+          <div class="snapshot-section-title">各维度态度</div>
+          ${keyDims.map(d => `
             <div class="snapshot-item">
-              <i class="fas fa-circle"></i>
-              <span>[${a.stance}] ${a.content}</span>
+              <i class="fas ${getDimensionIcon(d.dimension)}" style="color:${getDimensionColor(d.dimension)}"></i>
+              <span>[${d.stance}] <strong>${d.dimension}</strong>：${d.optimisticPremise.slice(0,40)}…</span>
             </div>
           `).join('')}
         </div>
@@ -977,26 +998,26 @@ window.unfreezeSnapshot = function() {
   if (project?.decisionSnapshot) {
     project.decisionSnapshot.frozenAt = undefined
     AppState.save()
-    renderT6(project)
+    renderTabC(project)
   }
 }
 
 // ─────────────────────────────────────────────────────
-// T7: 跟踪信号
+// Tab D: 跟踪信号
 // ─────────────────────────────────────────────────────
-function renderT7(project) {
-  const container = document.getElementById('t7-signals')
+function renderTabD(project) {
+  const container = document.getElementById('td-signals')
 
   if (!project.decisionSnapshot) {
     container.innerHTML = `
       <div class="progress-gate">
         <i class="fas fa-lock"></i>
-        <p>请先在 T6 生成决策快照，再开始跟踪信号。</p>
+        <p>请先在「决策快照」Tab 生成快照，再开始跟踪信号。</p>
       </div>`
     return
   }
 
-  if (project.trackingSignals.length === 0) {
+  if (!project.trackingSignals || project.trackingSignals.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <i class="fas fa-satellite-dish"></i>
@@ -1006,13 +1027,15 @@ function renderT7(project) {
   }
 
   container.innerHTML = project.trackingSignals.map(signal => {
-    const ass = project.assumptions.find(a => a.id === signal.assumptionId)
+    const dim = (project.dimensionBlocks || []).find(d => d.id === signal.dimensionId)
     return `
       <div class="signal-card">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span class="badge badge-signal-${signal.status}">${signal.status}</span>
-            ${ass ? `<span style="font-size:12px;color:var(--color-text-tertiary)">关联假设：${ass.content.slice(0,30)}…</span>` : ''}
+            ${dim ? `<span style="font-size:12px;color:${getDimensionColor(dim.dimension)};font-weight:600">
+              <i class="fas ${getDimensionIcon(dim.dimension)}"></i> ${dim.dimension}
+            </span>` : ''}
           </div>
           <div style="font-size:14px;color:var(--color-text-primary);margin-bottom:6px">${signal.description}</div>
           ${signal.note ? `<div style="font-size:12px;color:var(--color-text-secondary);background:var(--color-bg);padding:6px 10px;border-radius:6px">${signal.note}</div>` : ''}
@@ -1035,7 +1058,7 @@ function renderT7(project) {
         signal.status = btn.dataset.status
         signal.lastUpdate = new Date().toLocaleDateString('zh-CN')
         AppState.save()
-        renderT7(project)
+        renderTabD(project)
         showToast(`信号状态已更新为「${btn.dataset.status}」`, 'success')
       }
     })
@@ -1043,13 +1066,12 @@ function renderT7(project) {
 }
 
 // ─────────────────────────────────────────────────────
-// T8: 复盘归档（错判分析深度参与）
+// Tab E: 复盘归档
 // ─────────────────────────────────────────────────────
-function renderT8(project) {
-  const container = document.getElementById('t8-reviews')
+function renderTabE(project) {
+  const container = document.getElementById('te-reviews')
 
-  // 历史复盘
-  if (project.reviewNotes.length === 0) {
+  if (!project.reviewNotes || project.reviewNotes.length === 0) {
     container.innerHTML = `
       <div style="padding:24px;text-align:center;color:var(--color-text-tertiary);font-size:13px">
         <i class="fas fa-archive" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px"></i>
@@ -1078,9 +1100,9 @@ function renderT8(project) {
   }
 
   // 新建复盘表单
-  const newReviewForm = document.getElementById('t8-new-review')
-  if (newReviewForm) {
-    newReviewForm.innerHTML = `
+  const newReviewEl = document.getElementById('te-new-review')
+  if (newReviewEl) {
+    newReviewEl.innerHTML = `
       <div class="new-review-form">
         <div style="font-size:16px;font-weight:700;margin-bottom:4px">新建复盘记录</div>
         <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px">记录本次判断的情况，归档后不可修改</div>
@@ -1108,11 +1130,11 @@ function renderT8(project) {
         <div class="wrong-analysis-area" id="wrong-analysis-area">
           <label>错判分析 <span style="font-size:12px;opacity:0.8">（必填，不提供 AI 初稿）</span></label>
           <div class="wrong-analysis-hint">
-            请独立思考：哪个假设或红旗当时没有被正确处理？是什么导致了边界判断偏差？
+            请独立思考：哪个维度或红旗当时没有被正确处理？是什么导致了边界判断偏差？
             不要只写结果，要写出推理过程。
           </div>
           <textarea id="wrong-analysis-text" rows="4"
-            placeholder="例如：当时把发起方主张误判为公开事实，导致能力假设被标记为支撑，实际上该证据强度不够…"></textarea>
+            placeholder="例如：当时把发起方主张误判为公开事实，导致商业化维度被标记为支撑，实际上该证据强度不够…"></textarea>
         </div>
 
         <div style="margin-top:20px;display:flex;gap:12px">
@@ -1159,7 +1181,7 @@ window.submitReview = function() {
   if (project.status === '支持中') project.status = '已关闭'
   AppState.save()
   showToast('复盘已归档 ✓', 'success')
-  renderT8(project)
+  renderTabE(project)
 }
 
 // =====================================================
@@ -1173,9 +1195,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('nav-projects')?.addEventListener('click', () => navigateTo('projects'))
   document.getElementById('nav-admin')?.addEventListener('click', () => navigateTo('admin'))
   document.getElementById('breadcrumb-back')?.addEventListener('click', () => navigateTo('projects'))
-
-  // T6 generate snapshot 按钮
-  document.getElementById('t6-generate-snapshot')?.addEventListener('click', generateSnapshot)
 
   initProjectsFilters()
   initAdminNav()

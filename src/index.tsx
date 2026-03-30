@@ -186,10 +186,6 @@ app.get('/', (c) => {
 
         <div class="card">
           <div class="card-body">
-            <div class="ai-notice" style="margin-bottom:20px">
-              <i class="fas fa-info-circle"></i>
-              <div>这些信息会显示在每个项目判断页的顶部「判断上下文条」中，帮助你保持判断的一致性。</div>
-            </div>
             <form id="context-form">
               <div class="form-group">
                 <label class="form-label">你的角色</label>
@@ -227,70 +223,40 @@ app.get('/', (c) => {
 </div>
 
 <!-- =========================================================
-  界面3：项目分析判断页
+  界面3：项目分析判断页（6 Tab）
   ========================================================= -->
 <div class="page" id="page-analysis">
   <div class="analysis-layout">
 
-    <!-- 固定头部：面包屑 + 上下文条 -->
-    <div class="analysis-header">
+    <!-- 固定头部：面包屑（无上下文条） -->
+    <div class="analysis-header analysis-header-slim">
       <div class="analysis-breadcrumb">
         <a id="breadcrumb-back"><i class="fas fa-chevron-left"></i> 项目流</a>
         <i class="fas fa-chevron-right"></i>
         <span id="analysis-project-name" style="color:var(--color-text-primary);font-weight:600"></span>
       </div>
-      <div class="context-bar">
-        <span class="context-bar-label"><i class="fas fa-user-circle"></i> 判断上下文</span>
-        <div class="context-bar-items">
-          <div class="context-bar-item">
-            <i class="fas fa-user"></i>
-            <strong id="ctx-bar-role"></strong>
-          </div>
-          <div class="context-bar-item">
-            <i class="fas fa-bullseye"></i>
-            <span id="ctx-bar-goal"></span>
-          </div>
-          <div class="context-bar-item">
-            <i class="fas fa-coins"></i>
-            <span id="ctx-bar-resources"></span>
-          </div>
-          <div class="context-bar-item">
-            <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
-            <span id="ctx-bar-risk"></span>
-          </div>
-        </div>
-      </div>
+      <div class="analysis-project-meta" id="analysis-project-meta"></div>
     </div>
 
-    <!-- Tab 导航 -->
+    <!-- Tab 导航（6 个） -->
     <div class="tab-nav-wrap">
       <div class="tab-nav">
-        <button class="tab-item active" data-tab="t1">
-          <span class="tab-num">1</span> 信息搜集
+        <button class="tab-item active" data-tab="ta">
+          <span class="tab-num">1</span> 信息搜集与分层
           <span class="tab-dot"></span>
         </button>
-        <button class="tab-item" data-tab="t2">
-          <span class="tab-num">2</span> 事实·自述·未知
-        </button>
-        <button class="tab-item" data-tab="t3">
-          <span class="tab-num">3</span> 关键假设
-        </button>
-        <button class="tab-item" data-tab="t4">
-          <span class="tab-num">4</span> 逻辑串联
+        <button class="tab-item" data-tab="tb">
+          <span class="tab-num">2</span> 假设 · 证据 · 红旗
           <span class="tab-dot"></span>
         </button>
-        <button class="tab-item" data-tab="t5">
-          <span class="tab-num">5</span> 红旗与反证
-          <span class="tab-dot"></span>
+        <button class="tab-item" data-tab="tc">
+          <span class="tab-num">3</span> 决策快照
         </button>
-        <button class="tab-item" data-tab="t6">
-          <span class="tab-num">6</span> 决策快照
+        <button class="tab-item" data-tab="td">
+          <span class="tab-num">4</span> 跟踪信号
         </button>
-        <button class="tab-item" data-tab="t7">
-          <span class="tab-num">7</span> 跟踪信号
-        </button>
-        <button class="tab-item" data-tab="t8">
-          <span class="tab-num">8</span> 复盘归档
+        <button class="tab-item" data-tab="te">
+          <span class="tab-num">5</span> 复盘归档
         </button>
       </div>
     </div>
@@ -298,58 +264,46 @@ app.get('/', (c) => {
     <!-- Tab 内容 -->
     <div class="tab-panels">
 
-      <!-- T1: 信息搜集 -->
-      <div class="tab-panel active" id="panel-t1">
-        <div class="panel-title">信息搜集 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Information Gathering</span></div>
-        <div class="panel-desc">以下信息由 AI 从公开渠道整理。你可以一键采纳，也可以逐条确认或标记存疑。</div>
+      <!-- Tab A: 信息搜集与分层 -->
+      <div class="tab-panel active" id="panel-ta">
+        <div class="panel-title">信息搜集与分层
+          <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Information Gathering & Layering</span>
+        </div>
+        <div class="panel-desc">AI 从公开渠道整理信息，并按「公开事实 / 发起方主张 / 当前未知」分层。你可以一键采纳，也可以逐条确认或调整分层归属。</div>
 
         <div class="ai-notice">
           <i class="fas fa-robot"></i>
           <div>
-            <strong>AI 已完成初步整理</strong>——包括公开事实、发起方主张和当前未知项的初步分类。
-            你可以直接采纳，也可以对有疑问的条目单独处理。
+            <strong>AI 已完成初步整理与分层。</strong>
+            「公开事实」可独立核验；「发起方主张」来自官方营销材料；「当前未知」是目前无法从公开渠道确认的信息。
+            <span style="color:var(--color-orange)">⚠️ 「当前未知」栏必须有内容——过于完整的信息清单往往是信号缺失的预警。</span>
           </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <!-- 操作栏 -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
           <div style="display:flex;gap:16px;flex:1">
             <span style="font-size:13px;color:var(--color-text-secondary)">
               <i class="fas fa-check-circle" style="color:var(--color-green)"></i>
-              已确认 <strong id="t1-confirmed-count">0</strong> 条
+              已确认 <strong id="ta-confirmed-count">0</strong> 条
             </span>
             <span style="font-size:13px;color:var(--color-text-secondary)">
               <i class="fas fa-clock" style="color:var(--color-orange)"></i>
-              待确认 <strong id="t1-pending-count">0</strong> 条
+              待确认 <strong id="ta-pending-count">0</strong> 条
             </span>
           </div>
-          <button class="btn btn-secondary btn-sm" id="t1-confirm-all">
+          <button class="btn btn-secondary btn-sm" id="ta-confirm-all">
             <i class="fas fa-check-double"></i> 一键全部采纳
           </button>
         </div>
 
-        <div id="t1-items"></div>
-      </div>
+        <!-- 信息条目列表 -->
+        <div id="ta-items" style="margin-bottom:24px"></div>
 
-      <!-- T2: 事实/自述/未知分层 -->
-      <div class="tab-panel" id="panel-t2">
-        <div class="panel-title">事实 · 自述 · 未知 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Information Layering</span></div>
-        <div class="panel-desc">严格区分三类信息——这是"不必先相信发起方也能工作"的核心机制。</div>
+        <div id="ta-unknown-warning" style="display:none" class="progress-gate"></div>
 
-        <div class="ai-notice">
-          <i class="fas fa-robot"></i>
-          <div>
-            <strong>AI 已完成初步分层。</strong>
-            你可以直接采纳，也可以通过调整 T1 中的信息分类来修改这里的展示。
-            <span style="color:var(--color-orange)">⚠️ 「当前未知」栏必须有内容——如果你认为某信息实际无法公开验证，请将其移至未知栏。</span>
-          </div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-          <button class="btn btn-secondary btn-sm" id="t2-confirm-all">
-            <i class="fas fa-check"></i> 采纳 AI 分层结果
-          </button>
-        </div>
-
+        <!-- 三栏分层视图 -->
+        <div style="font-size:15px;font-weight:700;margin:24px 0 12px">信息分层视图</div>
         <div class="layer-columns">
           <div class="layer-column layer-公开事实">
             <div class="layer-column-header">
@@ -377,157 +331,134 @@ app.get('/', (c) => {
           </div>
         </div>
 
-        <div id="t2-unknown-warning" style="display:none" class="progress-gate"></div>
-
-        <!-- 公开证据摘要 -->
-        <div style="margin-top:24px">
+        <!-- 公开证据快照 -->
+        <div style="margin-top:28px">
           <div style="font-size:15px;font-weight:700;margin-bottom:12px">公开证据快照</div>
-          <div id="t2-evidence-list"></div>
+          <div id="ta-evidence-list"></div>
         </div>
       </div>
 
-      <!-- T3: 关键假设 -->
-      <div class="tab-panel" id="panel-t3">
-        <div class="panel-title">建立关键假设 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Key Assumptions</span></div>
-        <div class="panel-desc">AI 已按 5 类假设模板生成初稿。展开每张假设卡，查看支持与削弱证据，在 T4 中给出你的判断。</div>
-
-        <div class="ai-notice">
-          <i class="fas fa-robot"></i>
-          <div>
-            <strong>假设类型严格固定为 5 类</strong>（问题假设 / 能力假设 / 落地假设 / 治理假设 / 资源假设），防止判断泛化。
-            你可以在 T4 中对每个假设给出"支撑 / 存疑 / 否定"的态度——那是真正的判断行为。
-          </div>
+      <!-- Tab B: 假设·证据·红旗 -->
+      <div class="tab-panel" id="panel-tb">
+        <div class="panel-title">假设 · 证据 · 红旗
+          <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Assumptions · Evidence · Red Flags</span>
         </div>
-
-        <div id="t3-assumptions"></div>
-      </div>
-
-      <!-- T4: 逻辑串联 -->
-      <div class="tab-panel" id="panel-t4">
-        <div class="panel-title">逻辑串联 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Logic Review</span></div>
-        <div class="panel-desc">对每个关键假设给出你的判断态度。这是 T4 的核心操作，不可跳过。</div>
+        <div class="panel-desc">
+          AI 从 5 个维度（商业化 / 用户 / 技术 / 适配 / 风险）分析当前信息是否自洽，识别悖论信号和红旗。
+          <strong>你需要对每个维度给出判断态度，并对每条红旗完成定级。</strong>
+        </div>
 
         <div class="ai-notice">
           <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
           <div>
-            <strong>T4 是判断核心步骤，需要你深度参与。</strong>
-            每个假设都需要你给出"支撑 / 存疑 / 否定"的明确态度。
-            AI 只展示关联证据，最终判断由你做出。
+            <strong>这是判断核心步骤，需要你深度参与。</strong>
+            每个维度的「乐观前提」是这件事能成立需要相信的条件，悖论信号是与之矛盾的已知信息。
+            请给出「支撑 / 存疑 / 否定」的明确态度，再对每条红旗定级。
           </div>
         </div>
 
-        <div id="t4-progress-gate" class="progress-gate" style="margin-bottom:16px">
+        <!-- 进度提示 -->
+        <div id="tb-progress-gate" class="progress-gate" style="margin-bottom:16px">
           <i class="fas fa-exclamation-triangle"></i>
-          <p>正在加载假设列表…</p>
+          <p>正在加载…</p>
         </div>
 
-        <div id="t4-logic"></div>
-      </div>
+        <!-- 维度块 -->
+        <div id="tb-dimensions"></div>
 
-      <!-- T5: 红旗与反证 -->
-      <div class="tab-panel" id="panel-t5">
-        <div class="panel-title">红旗与反证 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Red Flags & Counter-Evidence</span></div>
-        <div class="panel-desc">AI 已根据规则库识别潜在红旗。每条红旗必须由你完成定级，才能推进到决策快照。</div>
-
-        <div class="ai-notice">
-          <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
-          <div>
-            <strong>T5 也是判断核心步骤。</strong>
-            「致命」意味着在当前条件下此项足以阻止投入；「需关注」意味着需要后续跟踪；「已解释」意味着该风险在你的场景中已被充分说明。
+        <!-- 红旗汇总区 -->
+        <div style="margin-top:32px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px">红旗定级汇总</div>
+          <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px">
+            每条红旗必须定级后，才能推进到决策快照。致命红旗将触发保守边界推荐。
           </div>
+          <div id="tb-flags"></div>
         </div>
-
-        <div id="t5-progress-gate" class="progress-gate" style="margin-bottom:16px">
-          <i class="fas fa-exclamation-triangle"></i>
-          <p>正在加载红旗列表…</p>
-        </div>
-
-        <div id="t5-flags"></div>
       </div>
 
-      <!-- T6: 决策快照 -->
-      <div class="tab-panel" id="panel-t6">
+      <!-- Tab C: 决策快照 -->
+      <div class="tab-panel" id="panel-tc">
         <div class="panel-title">决策快照 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Decision Snapshot</span></div>
         <div class="panel-desc">将本次判断冻结为可复查的决策基线。投入边界由你来选择，AI 提供参考建议。</div>
 
-        <div id="t6-gate" class="progress-gate" style="margin-bottom:20px"></div>
+        <div id="tc-gate" class="progress-gate" style="margin-bottom:20px"></div>
 
-        <div id="t6-snapshot-display"></div>
+        <div id="tc-snapshot-display"></div>
 
-        <div id="t6-editor">
-          <div class="ai-notice" id="t6-ai-suggestion">
+        <div id="tc-editor">
+          <div class="ai-notice" id="tc-ai-suggestion">
             <i class="fas fa-robot"></i>
             <div>AI 正在推断建议边界…</div>
           </div>
 
           <div style="font-size:15px;font-weight:700;margin-bottom:12px">选择投入边界 <span style="font-size:13px;font-weight:400;color:var(--color-red)">（必须由你决定）</span></div>
-          <div class="boundary-selector" id="t6-boundary-selector"></div>
+          <div class="boundary-selector" id="tc-boundary-selector"></div>
 
           <hr class="divider">
 
-          <div style="font-size:15px;font-weight:700;margin-bottom:12px">当前关键假设状态</div>
-          <div id="t6-assumptions-summary"></div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px">各维度当前状态</div>
+          <div id="tc-dimensions-summary"></div>
 
           <hr class="divider">
 
           <div style="font-size:15px;font-weight:700;margin-bottom:12px">决策修改节点</div>
           <div class="form-group">
             <label class="form-label">升级触发条件 <span class="label-note">（什么情况下可以提升投入级别）</span></label>
-            <input class="form-input" id="t6-trigger-upgrade" placeholder="例如：若能获取到独立客户验证，可升级到可以接触">
+            <input class="form-input" id="tc-trigger-upgrade" placeholder="例如：若能获取到独立客户验证，可升级到可以接触">
           </div>
           <div class="form-group">
             <label class="form-label">暂停触发条件 <span class="label-note">（什么情况下应立即暂停）</span></label>
-            <input class="form-input" id="t6-trigger-pause" placeholder="例如：若出现安全合规问题或产品停止维护">
+            <input class="form-input" id="tc-trigger-pause" placeholder="例如：若出现安全合规问题或产品停止维护">
           </div>
           <div class="form-group">
             <label class="form-label">退出触发条件 <span class="label-note">（什么情况下彻底退出跟踪）</span></label>
-            <input class="form-input" id="t6-trigger-exit" placeholder="例如：项目方停止更新超过 3 个月">
+            <input class="form-input" id="tc-trigger-exit" placeholder="例如：项目方停止更新超过 3 个月">
           </div>
           <div class="form-group">
             <label class="form-label">下次复查时间</label>
-            <input class="form-input" id="t6-review-date" type="date" value="2026-05-01">
+            <input class="form-input" id="tc-review-date" type="date" value="2026-05-01">
           </div>
 
-          <button class="btn btn-primary btn-lg" id="t6-generate-snapshot" style="margin-top:8px">
+          <button class="btn btn-primary btn-lg" id="tc-generate-snapshot" style="margin-top:8px">
             <i class="fas fa-camera"></i> 生成并冻结决策快照
           </button>
         </div>
       </div>
 
-      <!-- T7: 跟踪信号 -->
-      <div class="tab-panel" id="panel-t7">
+      <!-- Tab D: 跟踪信号 -->
+      <div class="tab-panel" id="panel-td">
         <div class="panel-title">跟踪信号 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Tracking Signals</span></div>
-        <div class="panel-desc">只跟踪"当初支持决策依赖的关键假设，后来有没有被验证"。不跟踪项目全貌。</div>
+        <div class="panel-desc">只跟踪"当初支持决策依赖的关键维度，后来有没有被验证"。不跟踪项目全貌。</div>
 
         <div class="ai-notice">
           <i class="fas fa-satellite-dish"></i>
           <div>
-            <strong>聚焦关键假设的状态变化。</strong>
+            <strong>聚焦关键假设维度的状态变化。</strong>
             对每个跟踪信号，选择当前状态：已验证 / 被削弱 / 尚不清楚 / 已否定。
-            如果有假设被否定，请回到 T4 更新态度，再考虑是否需要修改决策快照。
+            如果有维度被否定，请回到 Tab 2 更新态度，再考虑是否需要修改决策快照。
           </div>
         </div>
 
-        <div id="t7-signals"></div>
+        <div id="td-signals"></div>
       </div>
 
-      <!-- T8: 复盘归档 -->
-      <div class="tab-panel" id="panel-t8">
+      <!-- Tab E: 复盘归档 -->
+      <div class="tab-panel" id="panel-te">
         <div class="panel-title">复盘归档 <span style="font-size:14px;font-weight:400;color:var(--color-text-tertiary)">Review & Archive</span></div>
         <div class="panel-desc">记录本次判断的过程与结论。如果是错判，<strong style="color:var(--color-red)">错判分析需要你独立思考完成——不提供 AI 初稿。</strong></div>
 
         <div class="ai-notice">
           <i class="fas fa-exclamation-triangle" style="color:var(--color-orange)"></i>
           <div>
-            <strong>T8 是复盘核心步骤，尤其是错判记录。</strong>
-            复盘摘要可参考 AI 整理，但错判分析必须由你独立完成——这是积累判断能力的唯一路径。
+            <strong>复盘是积累判断能力的唯一路径。</strong>
+            复盘摘要可参考 AI 整理，但错判分析必须由你独立完成——不提供 AI 初稿，不能为空。
           </div>
         </div>
 
-        <div id="t8-new-review"></div>
+        <div id="te-new-review"></div>
         <hr class="divider">
         <div style="font-size:15px;font-weight:700;margin-bottom:12px">历史复盘记录</div>
-        <div id="t8-reviews"></div>
+        <div id="te-reviews"></div>
       </div>
 
     </div><!-- /tab-panels -->
